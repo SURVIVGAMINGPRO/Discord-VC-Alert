@@ -5,3 +5,5 @@ target/
 *.log
 # The old Python version holds a Discord client secret and login token.
 vc_alert_OLD/
+# The design checker's local cache (holds local paths).
+.impeccable/hook.cache.json
