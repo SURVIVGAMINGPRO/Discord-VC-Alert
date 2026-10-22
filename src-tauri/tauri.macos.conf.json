@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "fileAssociations": [
+      {
+        "ext": ["json"],
+        "name": "VC Alert list",
+        "role": "Viewer",
+        "rank": "Alternate",
+        "description": "A VC Alert watch list or backup"
+      }
+    ]
+  }
+}

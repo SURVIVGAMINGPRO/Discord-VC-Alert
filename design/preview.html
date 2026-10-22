@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" data-theme="ink">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VC Alert design direction</title>
+    <style>
+      body { margin: 0; background: #0c0d14; color: var(--text); font: var(--fs-md) / var(--lh) var(--font-ui); -webkit-font-smoothing: antialiased; }
+      .page { display: grid; gap: var(--sp-6); padding: var(--sp-6); max-width: 1180px; margin: 0 auto; }
+      .label { color: #8a90aa; font-size: var(--fs-sm); margin: 0 0 var(--sp-2); }
+      .pair { display: flex; gap: var(--sp-6); flex-wrap: wrap; align-items: flex-start; }
+      .id { font-family: var(--font-id); font-size: var(--fs-sm); letter-spacing: 0; }
+      .ico { display: inline-flex; width: 18px; height: 18px; }
+      .ico svg { width: 100%; height: 100%; fill: currentColor; }
+
+      /* --- window --- */
+      .win { width: 400px; background: var(--bg); color: var(--text); border-radius: 12px; overflow: hidden; box-shadow: 0 30px 60px rgba(0,0,0,.5), 0 0 0 1px var(--line); }
+      .titlebar { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+      .tl { width: 11px; height: 11px; border-radius: 50%; }
+      .titlebar .t { flex: 1; text-align: center; color: var(--text-3); font-size: var(--fs-sm); font-weight: var(--fw-medium); margin-right: 50px; }
+
+      .status { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); }
+      .lamp { position: relative; width: 10px; height: 10px; border-radius: var(--r-full); background: var(--text-3); flex: none; }
+      .lamp.live { background: var(--live); box-shadow: 0 0 0 4px var(--live-wash); }
+      .lamp.live::after { content: ''; position: absolute; inset: -4px; border-radius: inherit; border: 2px solid var(--live); opacity: 0; animation: ping var(--t-ping) var(--ease-out) infinite; }
+      @keyframes ping { 0% { transform: scale(.6); opacity: .9 } 100% { transform: scale(2.4); opacity: 0 } }
+      .st { flex: 1; min-width: 0; }
+      .st-main { font-size: var(--fs-lg); font-weight: var(--fw-bold); line-height: var(--lh-tight); }
+      .st-sub { color: var(--text-2); font-size: var(--fs-sm); }
+      .st-sub b { color: var(--live-text); font-weight: var(--fw-medium); }
+
+      .btn { height: var(--h-md); padding: 0 var(--sp-3); border-radius: var(--r-sm); border: 1px solid transparent; font: var(--fw-medium) var(--fs-md) var(--font-ui); display: inline-flex; align-items: center; gap: 6px; cursor: default; transition: background var(--t-fast); }
+      .btn.primary { background: var(--accent); color: var(--on-accent); }
+      .btn.primary:hover { background: var(--accent-hover); }
+      .btn.secondary { background: var(--raised); color: var(--text); border-color: var(--line-strong); }
+      .btn.secondary:hover { background: var(--hover); }
+      .btn.ghost { background: transparent; color: var(--text-2); }
+      .btn.ghost:hover { background: var(--hover); color: var(--text); }
+      .btn.danger { background: var(--danger); color: var(--on-danger); }
+      .btn.sm { height: var(--h-sm); padding: 0 var(--sp-2); font-size: var(--fs-sm); }
+      .focus { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .iconbtn { width: var(--h-md); height: var(--h-md); border-radius: var(--r-sm); border: none; background: transparent; color: var(--text-2); display: inline-flex; align-items: center; justify-content: center; }
+      .iconbtn:hover { background: var(--hover); color: var(--text); }
+      .iconbtn.on { background: var(--accent-wash); color: var(--accent-text); }
+
+      .search { margin: var(--sp-3) var(--sp-4) var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); height: var(--h-lg); padding: 0 var(--sp-3); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-sm); color: var(--text-3); }
+      .search .ph { flex: 1; }
+      kbd { font: var(--fs-xs) var(--font-ui); color: var(--text-3); border: 1px solid var(--line-strong); border-radius: var(--r-xs); padding: 0 5px; }
+
+      .sec { display: flex; align-items: baseline; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-1); color: var(--text-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+      .sec .n { color: var(--text-3); font-weight: var(--fw-regular); }
+      .sec.live { color: var(--live-text); }
+      .rows { padding: 0 var(--sp-2); }
+      .row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--row-y) var(--sp-2); border-radius: var(--r-md); }
+      .row:hover, .row.hov { background: var(--hover); }
+      .row.joined { background: var(--live-wash); }
+      .av { position: relative; width: var(--avatar); height: var(--avatar); border-radius: var(--r-full); color: #fff; font-weight: var(--fw-bold); display: flex; align-items: center; justify-content: center; flex: none; font-size: 13px; }
+      .av .dot { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; background: var(--live); border: 2.5px solid var(--bg); }
+      .row.hov .av .dot { border-color: var(--hover); }
+      .who { flex: 1; min-width: 0; }
+      .who .name { font-weight: var(--fw-medium); }
+      .who .id { color: var(--text-3); }
+      .who .when { color: var(--live-text); font-size: var(--fs-sm); }
+      .tag { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--accent-text); background: var(--accent-wash); padding: 2px 7px; border-radius: var(--r-xs); }
+      .acts { display: flex; gap: 2px; }
+
+      .soundbar { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--line); background: var(--surface); }
+      .soundbar .t { flex: 1; min-width: 0; }
+      .soundbar .t div:first-child { font-weight: var(--fw-medium); }
+      .overline { padding: 0 var(--sp-4) var(--sp-3); background: var(--surface); color: var(--text-3); font-size: var(--fs-sm); }
+      .overline a { color: var(--accent-text); text-decoration: none; }
+
+      /* --- overlay scenes --- */
+      .scenes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); }
+      .scene { position: relative; height: 170px; border-radius: 10px; overflow: hidden; }
+      .s-bright { background: linear-gradient(160deg, #e9f4ff, #fff6dd 60%, #ffffff); }
+      .s-dark { background: radial-gradient(circle at 70% 70%, #1d2a3a, #05070a 70%); }
+      .s-busy { background: repeating-linear-gradient(45deg, #ff5f6d 0 18px, #ffc371 18px 36px, #2bc0e4 36px 54px, #1a1a1a 54px 72px); }
+      .bar { position: absolute; top: 14px; left: 14px; display: flex; gap: 4px; }
+      .oav { width: 24px; height: 24px; border-radius: 50%; color: #fff; font: 700 11px var(--font-ui); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--ov-ring), 0 0 0 3px var(--ov-edge); }
+      .oav.flash { box-shadow: 0 0 0 2px var(--ov-live), 0 0 0 3px var(--ov-ring), 0 0 0 4px var(--ov-edge); }
+      .oav.badge { background: var(--ov-badge); }
+      .bubble { position: absolute; top: 50px; left: 22px; background: var(--ov-plate); color: var(--ov-text); border-radius: 8px; padding: 6px 10px; box-shadow: 0 0 0 1px var(--ov-edge); }
+      .bubble::before { content: ''; position: absolute; top: -5px; left: 26px; width: 9px; height: 9px; background: inherit; transform: rotate(45deg); box-shadow: -1px -1px 0 0 var(--ov-edge); }
+      .bubble .m { font: var(--fw-bold) 12px var(--font-ui); position: relative; }
+      .bubble .s { font: 11px var(--font-id); color: var(--ov-text-2); position: relative; }
+      .count { position: absolute; bottom: 16px; left: 14px; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px; border-radius: 999px; background: var(--ov-plate); color: var(--ov-text); font: 700 13px var(--font-id); box-shadow: 0 0 0 1px var(--ov-edge); }
+      .count i { width: 8px; height: 8px; border-radius: 50%; background: var(--ov-live); }
+      .dots { position: absolute; bottom: 22px; right: 16px; display: flex; gap: 4px; }
+      .dots i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--ov-ring), 0 0 0 2.5px var(--ov-edge); }
+      .cap { color: #8a90aa; font-size: var(--fs-sm); margin-top: var(--sp-1); }
+
+      /* --- tokens --- */
+      .tokens { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); }
+      .card { background: var(--bg); border-radius: var(--r-md); padding: var(--sp-4); box-shadow: 0 0 0 1px var(--line); }
+      .sw { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+      .sw div { height: 34px; border-radius: var(--r-xs); box-shadow: inset 0 0 0 1px rgba(127,127,127,.25); }
+      .sw span { display: block; font: 10px var(--font-id); color: var(--text-3); margin-top: 3px; }
+      .spec { display: grid; gap: 6px; }
+      .scale { display: flex; align-items: flex-end; gap: 6px; }
+      .scale div { background: var(--accent-wash); border: 1px solid var(--accent); }
+      .switch { width: 36px; height: 20px; border-radius: 999px; background: var(--live); position: relative; display: inline-block; }
+      .switch::after { content: ''; position: absolute; right: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; }
+      .switch.off { background: var(--line-strong); }
+      .switch.off::after { right: auto; left: 3px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section>
+        <p class="label">Main window: Ink theme (left) and Paper theme (right). The theme is your choice in Settings; it doesn't change with watching or stopped.</p>
+        <div class="pair">
+          <div class="win" data-theme="ink" aria-label="Ink theme">
+            <div class="titlebar"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span><span class="t">VC Alert</span></div>
+            <header class="status">
+              <span class="lamp live"></span>
+              <div class="st"><div class="st-main">Watching General</div><div class="st-sub"><b>3 of your list</b> are in the call</div></div>
+              <button class="iconbtn" title="Quiet"><span class="ico" data-icon="notifications_off"></span></button>
+              <button class="iconbtn" title="Settings"><span class="ico" data-icon="settings"></span></button>
+              <button class="btn secondary">Stop</button>
+            </header>
+            <div class="search"><span class="ico" data-icon="search"></span><span class="ph">Search or add a username</span><kbd>⌘F</kbd></div>
+            <div class="sec live">In your channel <span class="n">3</span></div>
+            <div class="rows">
+              <div class="row joined"><div class="av" style="background:var(--id-4)">P<span class="dot" style="border-color:var(--bg)"></span></div><div class="who"><div class="name">pixel_fox</div><div class="when">joined just now</div></div></div>
+              <div class="row hov"><div class="av" style="background:var(--id-1)">M<span class="dot"></span></div><div class="who"><div class="name">Maria</div><div class="id">@maria_k</div></div><span class="tag">Own sound</span><div class="acts"><button class="iconbtn"><span class="ico" data-icon="volume_up"></span></button><button class="iconbtn"><span class="ico" data-icon="more_horiz"></span></button></div></div>
+              <div class="row"><div class="av" style="background:var(--id-0)">M<span class="dot"></span></div><div class="who"><div class="name">Moderator</div><div class="when" style="color:var(--text-3)">joined 12 min ago</div></div></div>
+            </div>
+            <div class="sec">Everyone else <span class="n">31</span></div>
+            <div class="rows">
+              <div class="row"><div class="av" style="background:var(--id-2)">T</div><div class="who"><div class="name">The Twins</div><div class="id">ID 1234…5678</div></div><span class="tag">Own sound</span></div>
+              <div class="row"><div class="av" style="background:var(--id-5)">I</div><div class="who"><div class="name id" style="font-size:var(--fs-md);color:var(--text)">l1ly_0wl.</div></div></div>
+              <div class="row"><div class="av" style="background:var(--id-3)">Z</div><div class="who"><div class="name">zed_42</div></div></div>
+            </div>
+            <footer class="soundbar"><span class="ico" data-icon="volume_up" style="color:var(--text-2)"></span><div class="t"><div>Universal sound</div><div class="id" style="color:var(--text-3)">1700 Hz, 90 ms, 3 beeps</div></div><button class="btn secondary sm"><span class="ico" data-icon="play_arrow" style="width:16px;height:16px"></span>Test</button></footer>
+            <div class="overline">Overlay: top left, 16 px. <a href="#">Change</a></div>
+          </div>
+
+          <div class="win" data-theme="paper" aria-label="Paper theme">
+            <div class="titlebar"><span class="tl" style="background:#ff5f57"></span><span class="tl" style="background:#febc2e"></span><span class="tl" style="background:#28c840"></span><span class="t">VC Alert</span></div>
+            <header class="status">
+              <span class="lamp"></span>
+              <div class="st"><div class="st-main">Not watching</div><div class="st-sub">34 people on your list</div></div>
+              <button class="iconbtn on" title="Quiet is on"><span class="ico" data-icon="notifications_off"></span></button>
+              <button class="iconbtn" title="Settings"><span class="ico" data-icon="settings"></span></button>
+              <button class="btn primary focus">Start watching</button>
+            </header>
+            <div class="search" style="border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);color:var(--text)"><span class="ico" data-icon="search" style="color:var(--text-3)"></span><span class="ph id" style="font-size:var(--fs-md)">n3w.friend</span><kbd>Esc</kbd></div>
+            <div class="rows" style="padding-top:var(--sp-1)">
+              <div class="row hov"><div class="av" style="background:var(--accent-wash);color:var(--accent-text)"><span class="ico" data-icon="person_add"></span></div><div class="who"><div class="name">Add <span class="id" style="font-size:var(--fs-md)">@n3w.friend</span></div><div class="id" style="color:var(--text-3);font-family:var(--font-ui)">Press Enter</div></div></div>
+            </div>
+            <div class="sec">Watch list <span class="n">34</span></div>
+            <div class="rows">
+              <div class="row"><div class="av" style="background:var(--id-1)">M</div><div class="who"><div class="name">Maria</div><div class="id">@maria_k</div></div><span class="tag">Own sound</span></div>
+              <div class="row"><div class="av" style="background:var(--id-0)">M</div><div class="who"><div class="name">Moderator</div></div></div>
+              <div class="row"><div class="av" style="background:var(--id-4)">P</div><div class="who"><div class="name">pixel_fox</div></div></div>
+            </div>
+            <footer class="soundbar"><span class="ico" data-icon="volume_up" style="color:var(--text-2)"></span><div class="t"><div>Universal sound</div><div class="id" style="color:var(--text-3)">1700 Hz, 90 ms, 3 beeps</div></div><button class="btn secondary sm"><span class="ico" data-icon="play_arrow" style="width:16px;height:16px"></span>Test</button></footer>
+            <div class="overline">Quiet is on: no sound and no overlay. <a href="#">Turn off</a></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <p class="label">Overlay over a bright page, a dark game and a busy video: pictures with a hover bubble, the count pill, and dots</p>
+        <div class="scenes">
+          <div><div class="scene s-bright">
+            <div class="bar"><div class="oav flash" style="background:var(--id-4)">P</div><div class="oav" style="background:var(--id-1)">M</div><div class="oav" style="background:var(--id-0)">M</div><div class="oav badge">+2</div></div>
+            <div class="bubble"><div class="m">Maria</div><div class="s">@maria_k</div></div>
+            <div class="count"><i></i>5</div>
+            <div class="dots"><i style="background:var(--id-4)"></i><i style="background:var(--id-1)"></i><i style="background:var(--id-0)"></i></div>
+          </div><div class="cap">Bright</div></div>
+          <div><div class="scene s-dark">
+            <div class="bar"><div class="oav flash" style="background:var(--id-4)">P</div><div class="oav" style="background:var(--id-1)">M</div><div class="oav" style="background:var(--id-0)">M</div><div class="oav badge">+2</div></div>
+            <div class="bubble"><div class="m">Maria</div><div class="s">@maria_k</div></div>
+            <div class="count"><i></i>5</div>
+            <div class="dots"><i style="background:var(--id-4)"></i><i style="background:var(--id-1)"></i><i style="background:var(--id-0)"></i></div>
+          </div><div class="cap">Dark game</div></div>
+          <div><div class="scene s-busy">
+            <div class="bar"><div class="oav flash" style="background:var(--id-4)">P</div><div class="oav" style="background:var(--id-1)">M</div><div class="oav" style="background:var(--id-0)">M</div><div class="oav badge">+2</div></div>
+            <div class="bubble"><div class="m">Maria</div><div class="s">@maria_k</div></div>
+            <div class="count"><i></i>5</div>
+            <div class="dots"><i style="background:var(--id-4)"></i><i style="background:var(--id-1)"></i><i style="background:var(--id-0)"></i></div>
+          </div><div class="cap">Busy video</div></div>
+        </div>
+      </section>
+
+      <section>
+        <p class="label">Tokens</p>
+        <div class="tokens">
+          <div class="card" data-theme="ink"><div class="sw" id="sw-ink"></div></div>
+          <div class="card" data-theme="graphite"><div class="sw" id="sw-graphite"></div></div>
+          <div class="card" data-theme="paper"><div class="sw" id="sw-paper"></div></div>
+          <div class="card" data-theme="ink">
+            <div class="spec">
+              <div style="font-size:var(--fs-xl);font-weight:var(--fw-bold)">Watching General</div>
+              <div style="font-size:var(--fs-lg);font-weight:var(--fw-bold)">Import a list</div>
+              <div style="font-size:var(--fs-md)">Body 13 px in the platform font (SF Pro, Segoe UI)</div>
+              <div style="font-size:var(--fs-sm);color:var(--text-2)">Secondary 12 px</div>
+              <div style="font-size:var(--fs-xs);color:var(--text-3)">Hint 11 px</div>
+              <div class="id" style="font-size:var(--fs-md)">@l1ly_0wl. · I l 1 | O 0 · 123456789012345678</div>
+            </div>
+          </div>
+          <div class="card" data-theme="ink">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn primary">Start watching</button>
+              <button class="btn secondary">Stop</button>
+              <button class="btn ghost">Cancel</button>
+              <button class="btn danger">Remove</button>
+              <button class="btn secondary focus">Focused</button>
+              <span class="switch"></span><span class="switch off"></span>
+            </div>
+            <p style="color:var(--text-3);font-size:var(--fs-sm);margin:12px 0 0">Blurple is the only action colour. Green only means someone is live. Red only for removing things.</p>
+          </div>
+          <div class="card" data-theme="ink">
+            <div style="color:var(--text-2);font-size:var(--fs-sm);margin-bottom:8px">Radius 4 · 6 · 10 · 14 · full</div>
+            <div class="scale"><div style="width:28px;height:28px;border-radius:var(--r-xs)"></div><div style="width:28px;height:28px;border-radius:var(--r-sm)"></div><div style="width:28px;height:28px;border-radius:var(--r-md)"></div><div style="width:28px;height:28px;border-radius:var(--r-lg)"></div><div style="width:28px;height:28px;border-radius:var(--r-full)"></div></div>
+            <div style="color:var(--text-2);font-size:var(--fs-sm);margin:12px 0 8px">Space 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32</div>
+            <div class="scale"><div style="width:2px;height:12px"></div><div style="width:4px;height:12px"></div><div style="width:8px;height:12px"></div><div style="width:12px;height:12px"></div><div style="width:16px;height:12px"></div><div style="width:20px;height:12px"></div><div style="width:24px;height:12px"></div><div style="width:32px;height:12px"></div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

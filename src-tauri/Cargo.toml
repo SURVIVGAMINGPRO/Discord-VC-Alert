@@ -1,0 +1,34 @@
+[package]
+name = "vc-alert"
+version.workspace = true
+edition.workspace = true
+description = "VC Alert"
+default-run = "vc-alert"
+
+[lib]
+name = "vc_alert_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+chrono = "0.4.45"
+keyring = { version = "3", features = ["apple-native", "windows-native"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio-util = "0.7.20"
+vc-core = { path = "../crates/vc-core" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

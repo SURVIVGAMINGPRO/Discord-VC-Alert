@@ -1,2 +1,114 @@
-# Discord-VC-Alert
-Plays a (customizeable!) sound when a select person (or multiple) join your Discord voice call.
+# VC Alert
+
+A quiet beep, and a tiny picture in the corner of your screen, when people you
+choose join the Discord voice channel you're in.
+
+It talks only to the Discord app on your own computer. No bot, no account
+token, nothing posted anywhere, and nobody else can see it.
+
+## Install
+
+- **macOS:** open `VC Alert_2.0.0_universal.dmg` and drag VC Alert to
+  Applications. The app isn't signed with an Apple Developer ID yet, so the
+  first time macOS blocks it: open **System Settings → Privacy & Security**,
+  scroll down and choose **Open Anyway**.
+- **Windows:** run `VC Alert_2.0.0_x64-setup.exe` (no admin needed), or use the
+  portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
+  **More info → Run anyway**. Put an empty file named `portable` next to the
+  portable .exe to keep its settings beside it.
+
+The Discord **desktop** app must be running. The browser version of Discord
+doesn't work.
+
+## First run
+
+VC Alert walks you through this, but here it is in full. It takes about two
+minutes, once.
+
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications)
+   and choose **New Application**. Any boring name works; nobody else sees it.
+2. Copy the **Application ID**.
+3. Under **OAuth2**, choose **Reset Secret** and copy the **Client Secret**.
+4. Under **OAuth2 → Redirects**, add `http://localhost` and save.
+5. If there's an **App Testers** section, add your own account.
+6. In VC Alert, paste both into **Settings → Connection** and choose **Save**,
+   then **Test connection**. The first time, Discord shows a popup inside the
+   Discord app: approve it. VC Alert remembers the approval.
+
+Coming from VC Alert 1? Choose **Import from VC Alert 1…** on the first screen
+(or **Settings → Import and export → Bring over VC Alert 1**) and pick your old
+`config.json`. Your list, sounds, overlay settings and Discord approval come
+over; your old files aren't changed.
+
+## Using it
+
+- **Add someone:** type their **unique username** (not their display name) in
+  the search box and press Enter. A long numeric user ID works too. Paste
+  several names separated by commas or spaces to add them all at once.
+- **Start watching**, then join a voice channel. People from your list who are
+  in your channel move to the top, and the overlay shows them.
+- **Own sound:** the speaker button on a person gives them their own beep or
+  sound file. Right-click a person (or press Enter on them) for Rename,
+  Sound…, Copy username and Remove. Delete removes the selected person, with Undo.
+- **Quiet:** the bell button turns off sound and the overlay; the list still
+  shows who joins.
+- **Overlay:** **Settings → Overlay** sets the style (pictures, a count, or
+  dots), size, and layout. **Position…** lets you drag it anywhere. It never
+  takes focus, clicks go straight through it, and it can be hidden from screen
+  sharing.
+- Use headphones: speakers can leak the beep into your microphone.
+
+## Sharing lists with friends
+
+**Settings → Import and export → Export…**
+- **List for friends:** names, usernames and per-person beeps (custom sound
+  files can be included). Never your Discord app details or settings. VC Alert 1
+  can read it too.
+- **Full backup:** everything, for yourself. Discord app details are included
+  only if you tick the box, and the file name then ends in `-private`.
+- **VC Alert 1:** a `config.json` for friends still on the old version.
+
+To import, drag a `.json` onto the window, use the add menu next to the search
+box, or **Settings → Import and export**. You see exactly what's in the file
+before anything changes, and a backup is saved first.
+
+Your friends need their own Discord application (steps 1–6 above).
+
+## Troubleshooting
+
+- **"Reconnecting…: open the Discord desktop app"**: start the Discord desktop
+  app; VC Alert keeps trying every 5 seconds.
+- **"Setup problem: Discord refused the authorization request"**: check the
+  Application ID, and that your account is on the app's tester list.
+- **"Token exchange failed"**: check the Client Secret, and that
+  `http://localhost` is under OAuth2 → Redirects.
+- **No popup in Discord**: look inside the Discord app itself; then
+  **Settings → Connection → Forget** and try again.
+- **A beep but no picture**: the picture is still downloading, or you're offline.
+- **The overlay hides behind a game**: switch the game to borderless or
+  windowed. Nothing can draw over exclusive full screen.
+
+When you're done: in Discord, **Settings → Authorized Apps**, remove the app,
+then delete the application in the Developer Portal.
+
+## Where things are kept
+
+- Settings: `~/Library/Application Support/VC Alert/` (macOS) or
+  `%APPDATA%\VC Alert\` (Windows).
+- Your Client Secret and Discord approval: your system's keychain
+  (Keychain on macOS, Credential Manager on Windows).
+
+## Building from source
+
+Needs Node 20+ and Rust (rustup). Then:
+
+```
+npm install
+npx tauri dev                                            # run it
+cargo test -p vc-core                                    # engine tests
+CI=true npx tauri build --target universal-apple-darwin  # macOS app + DMG
+```
+
+For Windows, push the repository to GitHub and run the **Build apps** workflow
+(Actions tab). It builds the installer and portable .exe on a Windows machine.
+See `CLAUDE.md` for the architecture and the rules this project follows.

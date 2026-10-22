@@ -1,0 +1,19 @@
+[package]
+name = "vc-core"
+version.workspace = true
+edition.workspace = true
+description = "VC Alert engine: config, import/export, Discord local RPC watcher, sounds, avatars, overlay geometry"
+
+[dependencies]
+base64 = "0.22"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "charset"] }
+rodio = { version = "0.23.0", default-features = false, features = ["playback", "wav", "mp3", "vorbis", "flac"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "net", "time", "sync", "macros", "io-util", "fs"] }
+tokio-util = "0.7.20"
+uuid = { version = "1.28.0", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

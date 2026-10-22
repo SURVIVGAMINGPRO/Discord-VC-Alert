@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/components/Avatar.svelte"
+        ],
+        "createdAt": "2026-10-22T00:06:08.949Z",
+        "reason": "user confirmed: the img only renders when a picture data URL exists ({#if src})"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/preview.html"
+        ],
+        "createdAt": "2026-10-22T00:27:18.786Z",
+        "reason": "fixture: the stripes simulate a busy video frame to test overlay readability, not surface decoration"
+      }
+    ]
+  }
+}
