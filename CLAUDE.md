@@ -33,7 +33,7 @@ v1's spec still describes the intended behaviour.
 
 Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
 the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
-profile pictures everywhere, and so on (2.0.x). Change it in
+profile pictures everywhere, 2.0.4 the list as cards, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
 
@@ -200,11 +200,17 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
 - Type: the platform font for the UI; **Atkinson Hyperlegible Mono only for
   usernames and IDs** (class `.id`). Sizes 11/12/13/15/18.
 - Radius by importance: 4 tags, 6 buttons/inputs, 10 rows, 14 sheets, full for
-  avatars, lamps, the status pill and the header's round buttons. 4 px spacing grid.
+  avatars, lamps, pills (the status pill, the "Custom" tag) and round icon
+  buttons. 4 px spacing grid.
 - Main window header (layout from the early mockup): one row with the status
   pill (lamp, state, channel, "n here"), round Quiet and Settings buttons, then
   Start/Stop. Longer text (what went wrong, what to do, Quiet) unfolds on a
   line below. Only the channel name truncates (full name in the tooltip).
+- The list (layout from the same mockup): headings "In your channel · 2";
+  each person is a card (surface, hairline edge, 8 px apart, no dividers):
+  36 px avatar, name, then @username/ID and, while in the channel, "joined
+  2 min ago" in green. Right side: a "Custom" tag for their own sound; on hover
+  or focus round Sound and More buttons take its place (the tag hides at once).
 - Copy: plain, sentence case, no "please", controls name their action and the
   resulting toast reuses the verb.
 - The overlay uses only `--ov-*` tokens (theme-independent): dark plates with a

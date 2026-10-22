@@ -1,6 +1,9 @@
 <script lang="ts">
-  // One person on the watch list. The line under the name always shows who
-  // they are (@username or ID), unless the label already is the username.
+  // One person on the watch list, as a card (layout from the early mockup).
+  // The line under the name shows who they are (@username or ID, unless the
+  // label already is the username) and, while they're in your channel, how
+  // long ago they joined. Right side: a "Custom" tag for their own sound, and
+  // round Sound and More buttons that take its place on hover or focus.
   import Avatar from '../components/Avatar.svelte';
   import IconButton from '../components/IconButton.svelte';
   import type { Target } from '../lib/types';
@@ -129,7 +132,7 @@
     onmenu(e.clientX, e.clientY);
   }}
 >
-  <Avatar {key} label={t.label} size={30} {src} {present} />
+  <Avatar {key} label={t.label} size={36} {src} {present} />
   <div class="who">
     {#if renaming}
       <!-- svelte-ignore a11y_autofocus -->
@@ -150,22 +153,31 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div class="name" title={t.label} ondblclick={() => onrename(null)}>{name}</div>
     {/if}
-    {#if ident}<div class="ident id">{ident}</div>{/if}
+    {#if ident || since}
+      <div class="sub">
+        {#if ident}<span class="ident id">{ident}</span>{/if}
+        {#if ident && since}<span class="sep" aria-hidden="true">·</span>{/if}
+        {#if since}<span class="since">{since}</span>{/if}
+      </div>
+    {/if}
   </div>
-  {#if since}<span class="since num" title="Time since they joined">{since}</span>{/if}
-  <div class="acts">
-    <span class="sound">
+  <div class="side">
+    {#if ownSound}<span class="tag" title="Has their own sound">Custom</span>{/if}
+    <div class="acts">
       <IconButton
+        round
+        flat={false}
+        size={28}
         icon="volume_up"
         label={ownSound ? `${t.label} has their own sound` : `Choose a sound for ${t.label}`}
         tone={ownSound ? 'accent' : undefined}
         tabindex={-1}
         onclick={onsound}
       />
-    </span>
-    <span class="more" bind:this={more}>
-      <IconButton icon="more_horiz" label="More for {t.label}" tabindex={-1} onclick={openFromButton} />
-    </span>
+      <span class="more" bind:this={more}>
+        <IconButton round flat={false} size={28} icon="more_horiz" label="More for {t.label}" tabindex={-1} onclick={openFromButton} />
+      </span>
+    </div>
   </div>
 </div>
 
@@ -176,9 +188,12 @@
     align-items: center;
     gap: var(--sp-3);
     min-height: calc(var(--avatar) + 2 * var(--row-y));
-    padding: var(--row-y) var(--sp-2);
+    padding: var(--row-y) var(--sp-3);
     border-radius: var(--r-md);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--line);
     outline: none;
+    --dot-ring: var(--surface);
     transition: background-color var(--t-fade) var(--ease-color);
   }
   .row:hover,
@@ -218,13 +233,36 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    font-weight: var(--fw-medium);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    line-height: var(--lh-tight);
+  }
+  .sub {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-1);
+    min-width: 0;
+    margin-top: var(--sp-0);
+    white-space: nowrap;
+    font-size: var(--fs-sm);
   }
   .ident {
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
-    white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--text-3);
+  }
+  .sep {
+    flex: none;
+    color: var(--text-3);
+  }
+  .since {
+    flex: 0 1000 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--live-text);
   }
   .rename {
     width: 100%;
@@ -240,27 +278,42 @@
     font-weight: var(--fw-medium);
     outline: none;
   }
-  .since {
+  /* The tag and the buttons share one spot, so nothing shifts on hover. */
+  .side {
+    display: grid;
     flex: none;
-    color: var(--text-3);
-    font-size: var(--fs-xs);
+    align-items: center;
+    justify-items: end;
+  }
+  .side > * {
+    grid-area: 1 / 1;
+    transition: opacity var(--t-fade) var(--ease-color);
+  }
+  .tag {
+    padding: var(--sp-0) var(--sp-2);
+    border-radius: var(--r-full);
+    background: var(--accent-wash);
+    color: var(--accent-text);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    line-height: var(--lh-tight);
   }
   .acts {
     display: flex;
-    flex: none;
-    gap: var(--sp-0);
+    gap: var(--sp-2);
+    opacity: 0;
   }
-  .sound,
   .more {
     display: flex;
-    opacity: 0;
-    transition: opacity var(--t-fade) var(--ease-color);
   }
-  .own .sound,
-  .row:hover .sound,
-  .row:hover .more,
-  .row:focus-within .sound,
-  .row:focus-within .more {
+  .row:hover .acts,
+  .row:focus-within .acts {
     opacity: 1;
+  }
+  /* The tag steps aside at once, so it never shows through the buttons. */
+  .row:hover .tag,
+  .row:focus-within .tag {
+    opacity: 0;
+    transition-duration: 0s;
   }
 </style>

@@ -99,8 +99,8 @@
   --shake: 3px;
 
   /* ------------------------------------------------------------- density */
-  --row-y: 6px;
-  --avatar: 30px;
+  --row-y: 8px;
+  --avatar: 36px;
 
   /* ----------------------------------------- letter avatars (v1 colours) */
   --id-0: #5865f2;
@@ -222,6 +222,6 @@
 }
 
 [data-density='comfortable'] {
-  --row-y: 10px;
-  --avatar: 38px;
+  --row-y: 12px;
+  --avatar: 40px;
 }

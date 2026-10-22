@@ -18,7 +18,7 @@
   import { app, avatars, loadAvatars, toast, watchAvatars } from '../lib/app.svelte';
   import { call, errText, on, onFileDrop, pickFile } from '../lib/api';
   import { flipParams, glide, rise, shake, shrink, swapIn, unfold, fold } from '../lib/motion';
-  import { describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
+  import { ago, describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
   import type { Target } from '../lib/types';
 
   const snap = $derived(app.snap!);
@@ -115,8 +115,7 @@
   const since = (key: string) => {
     const t = joinedAt[key.toLowerCase()];
     if (!t) return null;
-    const m = Math.floor((now - t) / 60000);
-    return m < 1 ? 'now' : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h`;
+    return ago(now - t);
   };
 
   // ------------------------------------------------------------- search --
@@ -524,7 +523,7 @@
     {#each items as it (it.id)}
       <div class="item" class:is-head={it.kind === 'head'} class:is-row={it.kind === 'row'} animate:glide={flipParams(filtering)} in:rise={{ skip: filtering }} out:shrink={{ skip: filtering }}>
         {#if it.kind === 'head'}
-          <div class="sec" class:live={it.live} role="presentation">{it.text} <span class="count"><RollingNumber value={it.count} /></span></div>
+          <div class="sec" class:live={it.live} role="presentation">{it.text} <span class="count"><span aria-hidden="true">·</span> <RollingNumber value={it.count} /></span></div>
         {:else}
           {@const k = keyOf(it.t)}
           <PersonRow
@@ -796,41 +795,25 @@
     mask-image: linear-gradient(to bottom, transparent, currentColor var(--fade), currentColor calc(100% - var(--fade)), transparent);
   }
   /* Rows are opaque and sit above headings, so a row gliding past a heading
-     covers it instead of mixing text. */
+     covers it instead of mixing text. Each person is a card; the space
+     between cards separates them (no dividers). */
   .item {
     position: relative;
     z-index: 1;
-    border-radius: var(--r-md);
     background: var(--bg);
+  }
+  .item.is-row {
+    padding-block: calc(var(--sp-2) / 2);
   }
   .item.is-head {
     z-index: 0;
     background: none;
   }
-  /* A grey hairline between people (never under a heading), lined up with the
-     names. It fades beside a hovered or focused row, whose highlight takes over. */
-  .item.is-row + .item.is-row::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: calc(var(--sp-2) + var(--avatar) + var(--sp-3));
-    right: var(--sp-2);
-    height: 1px;
-    background: var(--line);
-    pointer-events: none;
-    transition: opacity var(--t-fade) var(--ease-color);
-  }
-  .item.is-row:hover::before,
-  .item.is-row:focus-within::before,
-  .item.is-row:hover + .item.is-row::before,
-  .item.is-row:focus-within + .item.is-row::before {
-    opacity: 0;
-  }
   .sec {
     display: flex;
     align-items: baseline;
-    gap: var(--sp-2);
-    padding: var(--sp-3) var(--sp-2) var(--sp-1);
+    gap: var(--sp-1);
+    padding: var(--sp-3) var(--sp-1) var(--sp-1);
     color: var(--text-2);
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
@@ -847,8 +830,8 @@
     align-items: center;
     gap: var(--sp-3);
     width: 100%;
-    margin-top: var(--sp-1);
-    padding: var(--row-y) var(--sp-2);
+    margin-block: calc(var(--sp-2) / 2);
+    padding: var(--row-y) var(--sp-3);
     border: 0;
     border-radius: var(--r-md);
     background: var(--hover);
