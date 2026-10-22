@@ -242,32 +242,6 @@ export function menuPop(node: Element, { out = false } = {}): TransitionConfig {
   };
 }
 
-export function toastIn(_node: Element): TransitionConfig {
-  alive(_node);
-  const from = num('--toast-from');
-  const blur = num('--blur-surface');
-  const r = reduced();
-  return {
-    duration: r ? ms('--t-fade') : ms('--spring-toast-dur'),
-    easing: r ? ease('--ease-out') : ease('--spring-toast-ease'),
-    css: (t) =>
-      r
-        ? `opacity:${t}`
-        : `opacity:${Math.min(1, t * 2)};filter:blur(${Math.max(0, 1 - t) * blur}px);transform:translateY(${(1 - t) * 12}px) scale(${from + (1 - from) * t})`,
-  };
-}
-
-export function toastOut(node: Element): TransitionConfig {
-  makeInert(node);
-  const from = num('--toast-from');
-  const r = reduced();
-  return {
-    duration: ms('--t-dismiss'),
-    easing: ease('--ease-away'),
-    css: (t) => (r ? `opacity:${t}` : `opacity:${t};transform:scale(${from + (1 - from) * t})`),
-  };
-}
-
 export function dialogIn(_node: Element): TransitionConfig {
   alive(_node);
   const from = num('--dialog-from');

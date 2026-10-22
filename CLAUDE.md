@@ -36,7 +36,8 @@ the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
 profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
 scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
 and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
-options and 30 px pictures, and so on (2.0.x). Change it in
+options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, and so on
+(2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`
 and the README's download names), and add an entry at the top of
@@ -260,6 +261,15 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   while typing doesn't animate.
 - Overlay: only the join halo, the count roll + bump, and the bubble grow and
   glide. Nothing on the overlay loops.
+- Toasts (`components/Toasts.svelte` + `Toast.svelte`, Animate UI's toast as
+  CSS): a stack, newest in front, up to 3 (`TOAST_LIMIT`); behind ones scale
+  `max(0.9, 1 - i * 0.05)` and peek `--toast-peek` above; hover or focus opens
+  it (`--toast-gap`, `--stagger-stack` front to back, only while opening or
+  closing) and pauses every timer. In: rise their own height from
+  `--toast-from` out of `--blur-surface` on `--spring-toast`; out: in place on
+  `--t-dismiss`/`--ease-away`. A 2 px blurple bar counts down (a Web
+  Animation paused with the timer). `toast(kind, message, {detail?, action?,
+  ms?})` splits "Title. More words." into a title and a muted second line.
 
 ## 9. Verifying UI changes
 

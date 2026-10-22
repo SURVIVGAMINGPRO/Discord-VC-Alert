@@ -7,6 +7,19 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.0.9 (2026-10-22)
+
+### Changed
+- New notifications, in the style of Animate UI's toast: they stack up
+  (newest in front, up to 3, the older ones peeking out behind) instead of
+  replacing each other. Hover the stack to fan it out; every notification
+  waits while you do.
+- Each one has an icon, a title, sometimes a second line, Undo where it
+  applies, and × to close it.
+- A blurple bar along the bottom counts down until it goes.
+- They rise in from the bottom and fade away in place. With reduced motion
+  on, they only fade.
+
 ## 2.0.8 (2026-10-22)
 
 ### Added

@@ -59,7 +59,7 @@ const snap: Snapshot = {
   snoozed: qp.get('snoozed') === '1' ? [{ key: 'samwise', until: Date.now() + 52 * 60000 }, { key: 'pixel_fox', until: null }] : [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.0.8',
+  version: '2.0.9',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,

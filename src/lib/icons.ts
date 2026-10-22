@@ -2,6 +2,8 @@
 import add from '@material-symbols/svg-400/outlined/add.svg?raw';
 import arrow_back from '@material-symbols/svg-400/outlined/arrow_back.svg?raw';
 import check from '@material-symbols/svg-400/outlined/check.svg?raw';
+import check_circle from '@material-symbols/svg-400/outlined/check_circle.svg?raw';
+import cancel from '@material-symbols/svg-400/outlined/cancel.svg?raw';
 import close from '@material-symbols/svg-400/outlined/close.svg?raw';
 import content_copy from '@material-symbols/svg-400/outlined/content_copy.svg?raw';
 import del from '@material-symbols/svg-400/outlined/delete.svg?raw';
@@ -34,7 +36,7 @@ import warning from '@material-symbols/svg-400/outlined/warning.svg?raw';
 import radio_button_checked from '@material-symbols/svg-400/outlined/radio_button_checked.svg?raw';
 
 export const ICONS = {
-  add, arrow_back, check, close, content_copy, delete: del, download, edit, folder_open, graphic_eq,
+  add, arrow_back, cancel, check, check_circle, close, content_copy, delete: del, download, edit, folder_open, graphic_eq,
   history, info, keyboard_arrow_down, link, mic, more_horiz, notifications, notifications_off, content_paste, file_open, open_in_new, person_add,
   play_arrow, search, settings, settings_backup_restore, snooze, upload, visibility, visibility_off, volume_up,
   warning, radio_button_checked,

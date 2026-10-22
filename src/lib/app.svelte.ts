@@ -1,6 +1,7 @@
 // Shared reactive state for a window: the latest snapshot from Rust, the
 // profile pictures, and toasts.
 import { call, getState, on } from './api';
+import { ms } from './motion';
 import type { Snapshot } from './types';
 
 export const app = $state<{ snap: Snapshot | null; label: string }>({ snap: null, label: 'main' });
@@ -51,22 +52,42 @@ export async function watchAvatars() {
 export interface Toast {
   id: number;
   kind: 'ok' | 'error' | 'info';
-  message: string;
+  title: string;
+  /** A muted second line. */
+  detail?: string;
   action?: { label: string; run: () => void };
+  /** How long it stays, in ms (paused while you hover the stack). */
+  ms: number;
+  leaving?: boolean;
 }
 
-export const toasts = $state<{ current: Toast | null }>({ current: null });
-let timer: ReturnType<typeof setTimeout> | undefined;
+/** Newest first. Up to TOAST_LIMIT stay on screen; older ones leave. */
+export const toasts = $state<{ list: Toast[] }>({ list: [] });
+export const TOAST_LIMIT = 3;
 let seq = 0;
 
-/** A new toast replaces the old one (v1 behaviour). */
-export function toast(kind: Toast['kind'], message: string, opts: { action?: Toast['action']; ms?: number } = {}) {
-  clearTimeout(timer);
-  toasts.current = { id: ++seq, kind, message, action: opts.action };
-  timer = setTimeout(() => (toasts.current = null), opts.ms ?? 5000);
+/** "Restored. Your list is back." → title "Restored", detail "Your list is back." */
+function split(message: string): [string, string | undefined] {
+  const m = /^(.+?)\.\s+(?=[A-Z“"(])(.+)$/s.exec(message.trim());
+  if (m) return [m[1], m[2]];
+  return [message.trim().replace(/\.$/, ''), undefined];
 }
 
-export function hideToast() {
-  clearTimeout(timer);
-  toasts.current = null;
+export function toast(
+  kind: Toast['kind'],
+  message: string,
+  opts: { detail?: string; action?: Toast['action']; ms?: number } = {},
+) {
+  const [title, detail] = opts.detail ? [message, opts.detail] : split(message);
+  const t: Toast = { id: ++seq, kind, title, detail, action: opts.action, ms: opts.ms ?? 5000 };
+  toasts.list = [t, ...toasts.list];
+  toasts.list.filter((x) => !x.leaving).slice(TOAST_LIMIT).forEach((x) => hideToast(x.id));
+}
+
+/** Plays the toast's exit (in place, --t-dismiss), then removes it. */
+export function hideToast(id: number) {
+  const t = toasts.list.find((x) => x.id === id);
+  if (!t || t.leaving) return;
+  t.leaving = true;
+  setTimeout(() => (toasts.list = toasts.list.filter((x) => x.id !== id)), ms('--t-dismiss'));
 }

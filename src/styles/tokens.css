@@ -94,6 +94,9 @@
   --menu-from: 0.9;
   --tooltip-from: 0.7;
   --toast-from: 0.96;
+  --toast-gap: 12px; /* between toasts when the stack is open */
+  --toast-peek: 12px; /* how much of each toast behind shows above the front one */
+  --stagger-stack: 30ms; /* the stack opening or closing, front to back */
   --dialog-from: 0.8;
   --blur-icon: 2px;
   --blur-surface: 4px;

@@ -10,11 +10,11 @@ What's new in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.8_universal.dmg` and drag VC Alert to
+- **macOS:** open `VC Alert_2.0.9_universal.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.8_x64-setup.exe` (no admin needed), or use the
+- **Windows:** run `VC Alert_2.0.9_x64-setup.exe` (no admin needed), or use the
   portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
