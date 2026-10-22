@@ -34,7 +34,7 @@ v1's spec still describes the intended behaviour.
 Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
 the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
 profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
-scrollbar, and so on (2.0.x). Change it in
+scrollbar, 2.0.6 no console window on Windows, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
 
@@ -285,6 +285,10 @@ watcher vs mock Discord incl. read-only commands and instant Stop), the user's
 real v1 config imports cleanly, `npm run check`/`build`, UI behaviour in a
 browser with the mock backend, and the universal macOS bundle builds and
 launches (main window, hidden overlay at the status window level, tray icon).
+The GitHub workflow builds the Windows installer, MSI and portable .exe, and
+`npm run check` + the engine tests pass on its Windows machine. Release .exe
+files are Windows GUI programs (`windows_subsystem = "windows"` in
+`src-tauri/src/main.rs`); without it a console window opens beside the app.
 
 Not verified yet: a real Discord session in v2 (v1 did authenticate on this
 Mac once), the Windows build running on Windows (named pipe, WebView2, tray,
