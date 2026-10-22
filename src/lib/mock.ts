@@ -46,7 +46,7 @@ const config: Config = {
     : [{ name: 'Low hum', beep: { frequency_hz: 400, duration_ms: 300, repeats: 2, volume: 0.6 } }],
   overlay: {
     enabled: qp.get('overlay') !== 'off', corner: 'top-left', offset: [24, 24], avatar_px: Number(qp.get('px') ?? 24), layout: 'row', max_shown: 3,
-    opacity: Number(qp.get('opacity') ?? 1), bubble: 'both', hide_when_empty: true, style: (qp.get('style') as any) ?? 'pictures', display: 'primary', hide_from_capture: true,
+    opacity: Number(qp.get('opacity') ?? 1), bubble: 'both', hide_when_empty: true, style: (qp.get('style') as any) ?? 'pictures', display: 'primary', hide_from_capture: qp.get('capture') !== 'on',
   },
   general: {
     start_watching_on_launch: false, start_minimized: false, mask_usernames: qp.get('mask') === '1', quiet: qp.get('quiet') === '1',
@@ -71,7 +71,7 @@ const snap: Snapshot = {
   snoozed: qp.get('snoozed') === '1' ? [{ key: 'samwise', until: Date.now() + 52 * 60000 }, { key: 'pixel_fox', until: null }] : [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.1.2',
+  version: '2.1.3',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,
@@ -249,6 +249,16 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
     case 'list_switch':
       switchList(a.index);
       changed();
+      return;
+    // ?update=1: a newer version is out; ?update=off: GitHub can't be reached.
+    case 'check_update':
+      await new Promise((r) => setTimeout(r, 400));
+      if (qp.get('update') === 'off') throw "Couldn't reach GitHub. Are you online?";
+      return { current: snap.version, latest: qp.get('update') === '1' ? '2.1.4' : snap.version, newer: qp.get('update') === '1', file: 'VC-Alert-macOS.dmg' };
+    case 'download_update':
+      await new Promise((r) => setTimeout(r, 600));
+      return '~/Downloads/VC-Alert-macOS-2.1.4.dmg';
+    case 'open_release_page':
       return;
     case 'test_leave_sound':
       return 0.09;

@@ -93,6 +93,38 @@
     patch({ overlay: { hide_from_capture: false }, general: { capture_confirmed: true } });
   }
 
+  // ------------------------------------------------- updates
+  // Only when you press the button: ask GitHub for the latest version; the
+  // download only when you ask for that too (hard rule 2).
+  type Update =
+    | { state: 'idle' | 'checking' }
+    | { state: 'current' }
+    | { state: 'newer' | 'downloading'; latest: string }
+    | { state: 'done'; latest: string; path: string }
+    | { state: 'error'; message: string };
+  let update = $state<Update>({ state: 'idle' });
+
+  async function checkUpdate() {
+    update = { state: 'checking' };
+    try {
+      const r = await call<{ current: string; latest: string; newer: boolean; file: string }>('check_update');
+      update = r.newer ? { state: 'newer', latest: r.latest } : { state: 'current' };
+    } catch (e) {
+      update = { state: 'error', message: errText(e) };
+    }
+  }
+
+  async function downloadUpdate(latest: string) {
+    update = { state: 'downloading', latest };
+    try {
+      const path = await call<string>('download_update');
+      update = { state: 'done', latest, path };
+      toast('ok', `Downloaded VC Alert ${latest}`, { detail: 'It’s in your Downloads folder.' });
+    } catch (e) {
+      update = { state: 'error', message: errText(e) };
+    }
+  }
+
   // ------------------------------------------------------------ data
   let importing = $state<{ path?: string; text?: string } | null>(null);
   let pasting = $state(false);
@@ -394,7 +426,31 @@
             <Logo size={48} />
             <p class="lead">VC Alert {snap.version}</p>
           </div>
-          <p class="body">VC Alert talks only to the Discord app on this computer, to Discord's sign-in when you approve it, and to Discord's picture server for profile pictures. No bot, no account token, nothing posted anywhere.</p>
+          <div class="update">
+            <Button onclick={checkUpdate} disabled={update.state === 'checking' || update.state === 'downloading'}>
+              {update.state === 'checking' ? 'Checking…' : 'Check for updates'}
+            </Button>
+            {#key update.state}
+              <div class="update-msg" in:swapIn aria-live="polite">
+                {#if update.state === 'current'}
+                  <span>You have the newest version ({snap.version}).</span>
+                {:else if update.state === 'newer'}
+                  <span>VC Alert {update.latest} is out.</span>
+                  <Button small kind="primary" onclick={() => update.state === 'newer' && downloadUpdate(update.latest)}>Download {update.latest}</Button>
+                  <Button small kind="link" onclick={() => call('open_release_page')}>What's new</Button>
+                {:else if update.state === 'downloading'}
+                  <span>Downloading VC Alert {update.latest}…</span>
+                {:else if update.state === 'done'}
+                  <span>
+                    Saved to Downloads. {mac ? 'Open it and drag VC Alert into Applications, replacing this one.' : 'Run it to install.'}
+                  </span>
+                {:else if update.state === 'error'}
+                  <span class="update-error">{update.message}</span>
+                {/if}
+              </div>
+            {/key}
+          </div>
+          <p class="body">VC Alert talks only to the Discord app on this computer, to Discord's sign-in when you approve it, and to Discord's picture server for profile pictures. When you press Check for updates, it also asks GitHub for the newest version. No bot, no account token, nothing posted anywhere.</p>
           <p class="body">Your Client Secret and Discord approval are kept in your system's keychain.</p>
         {/if}
       </section>
@@ -565,5 +621,25 @@
     nav button:active {
       transform: none;
     }
+  }
+  .update {
+    display: grid;
+    justify-items: start;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-4);
+  }
+  .update-msg {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  .update-msg:empty {
+    display: none;
+  }
+  .update-error {
+    color: var(--danger-text);
   }
 </style>

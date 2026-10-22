@@ -336,6 +336,16 @@
     menu = { x: r.left, y: r.bottom + 4, items, label: 'Lists' };
   }
 
+  // ------------------------------------------------- screen sharing --
+  async function hideFromCapture() {
+    try {
+      await call('update_settings', { patch: { overlay: { hide_from_capture: true } } });
+      toast('ok', 'Hidden from screen sharing');
+    } catch (e) {
+      toast('error', errText(e));
+    }
+  }
+
   async function deleteList() {
     const d = deleting!;
     deleting = null;
@@ -582,6 +592,17 @@
         <Icon name="info" size={16} />
         <span>Add your Discord app details so VC Alert can talk to Discord.</span>
         <Button small kind="primary" onclick={() => call('open_settings', { tab: 'connection' })}>Set up</Button>
+      </div>
+    </div>
+  {/if}
+  {#if !cfg.overlay.hide_from_capture}
+    <!-- Shown for as long as VC Alert can be seen in screen shares, so it's
+         never left that way by accident. -->
+    <div class="banner warn" in:unfold out:fold>
+      <div class="banner-in">
+        <Icon name="visibility" size={16} />
+        <span>VC Alert shows in screen shares and recordings.</span>
+        <Button small onclick={hideFromCapture}>Hide it</Button>
       </div>
     </div>
   {/if}

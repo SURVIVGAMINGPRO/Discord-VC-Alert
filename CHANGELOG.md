@@ -7,6 +7,16 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.1.3 (2026-10-23)
+
+### Added
+- **Check for updates** in Settings → About. It tells you if you have the
+  newest version; if not, **Download** saves the new version for your
+  computer to your Downloads folder, and **What's new** opens the release
+  notes. VC Alert only contacts GitHub when you press the button.
+- While VC Alert can be seen in screen sharing, the main window says so,
+  with **Hide it** to hide it again.
+
 ## 2.1.2 (2026-10-22)
 
 ### Added

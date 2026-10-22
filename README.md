@@ -12,7 +12,9 @@ A quiet beep, and a tiny picture in the corner of your screen, when people you
 choose join the Discord voice channel you're in.
 
 It talks only to the Discord app on your own computer. No bot, no account
-token, nothing posted anywhere, and nobody else can see it.
+token, nothing posted anywhere, and nobody else can see it. The one exception:
+when you press **Check for updates** (Settings → About), it asks GitHub for the
+newest version.
 
 What's new in each version: [CHANGELOG.md](CHANGELOG.md).
 
@@ -83,7 +85,9 @@ minutes, once.
   takes focus, and clicks go straight through it.
 - **Screen sharing:** VC Alert stays out of screen shares and recordings. To
   show it, switch on **Settings → Overlay → Show in screen sharing** (it asks
-  once to make sure).
+  once to make sure). While it's on, the main window says so, with **Hide it**.
+- **Updates:** **Settings → About → Check for updates**. If there's a newer
+  version, **Download** saves it to your Downloads folder.
 - **Open at login** with **Start in the background** keeps VC Alert in the
   menu bar when you log in. Opening it yourself always shows the window.
 - Use headphones: speakers can leak the beep into your microphone.

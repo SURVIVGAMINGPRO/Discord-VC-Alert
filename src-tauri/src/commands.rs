@@ -364,6 +364,58 @@ pub async fn open_developer_portal(app: AppHandle) -> R<()> {
     app.opener().open_url(PORTAL, None::<&str>).map_err(|e| e.to_string())
 }
 
+// --------------------------------------------------------------- updates --
+// Only when the user presses "Check for updates" (hard rule 2): one GET to
+// GitHub for the latest release, and the download only when they ask for it.
+
+#[derive(Serialize)]
+pub struct UpdateInfo {
+    current: String,
+    latest: String,
+    newer: bool,
+    /// This computer's file in the release (.dmg or the Windows installer).
+    file: String,
+}
+
+#[tauri::command]
+pub async fn check_update() -> R<UpdateInfo> {
+    use vc_core::update::{asset_name, is_newer, latest};
+    let r = latest(vc_core::APP_VERSION).await?;
+    Ok(UpdateInfo {
+        current: vc_core::APP_VERSION.into(),
+        newer: is_newer(&r.version, vc_core::APP_VERSION),
+        latest: r.version,
+        file: asset_name().into(),
+    })
+}
+
+/// Save the newest version's file for this computer in Downloads and show it
+/// in Finder / Explorer. Returns where it went.
+#[tauri::command]
+pub async fn download_update(app: AppHandle) -> R<String> {
+    use tauri_plugin_opener::OpenerExt;
+    use vc_core::update::{asset_name, download, is_newer, latest};
+    let r = latest(vc_core::APP_VERSION).await?;
+    if !is_newer(&r.version, vc_core::APP_VERSION) {
+        return Err("You already have the newest version.".into());
+    }
+    let url = r.asset(asset_name()).ok_or("This release has no file for your computer yet.")?;
+    let dir = app.path().download_dir().map_err(|e| e.to_string())?;
+    let (stem, ext) = asset_name().rsplit_once('.').unwrap_or((asset_name(), ""));
+    let dest = dir.join(format!("{stem}-{}.{ext}", r.version));
+    download(url, &dest, vc_core::APP_VERSION).await?;
+    let _ = app.opener().reveal_item_in_dir(&dest);
+    Ok(dest.display().to_string())
+}
+
+/// "What's new": the latest release on GitHub, in the browser.
+#[tauri::command]
+pub async fn open_release_page(app: AppHandle) -> R<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = format!("https://github.com/{}/releases/latest", vc_core::update::REPO);
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn reveal_data_folder(app: AppHandle) -> R<()> {
     use tauri_plugin_opener::OpenerExt;

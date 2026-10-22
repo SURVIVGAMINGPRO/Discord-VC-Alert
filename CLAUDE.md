@@ -14,8 +14,12 @@ v1's spec still describes the intended behaviour.
    account token, never connect to the Discord gateway as the user.
 2. **Only Discord's documented local RPC** to the user's own desktop app, plus
    the OAuth2 token exchange with `discord.com` and plain GETs of public
-   pictures from `cdn.discordapp.com`. No other network traffic: no telemetry,
-   no auto-updater, no web fonts, no CDNs.
+   pictures from `cdn.discordapp.com`. The one exception (the user's decision,
+   2.1.3): **only when the user presses Check for updates**, one GET to
+   `api.github.com/repos/SURVIVGAMINGPRO/Discord-VC-Alert/releases/latest`,
+   and only when they press Download, this repository's release file
+   (`vc_core::update`). No other network traffic: no telemetry, no automatic
+   update checks or installs, no web fonts, no CDNs.
 3. **Read-only RPC.** The only commands ever sent are `AUTHORIZE`,
    `AUTHENTICATE`, `SUBSCRIBE`, `UNSUBSCRIBE`, `GET_SELECTED_VOICE_CHANNEL`
    (plus handshake and `PONG`). `crates/vc-core/tests/watcher.rs` enforces it.
@@ -39,7 +43,8 @@ and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
 options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, 2.1.0
 the logo, its launch zoom, the card hover shadow and GitHub Releases, 2.1.1
 lists, group calls, leave sound choices and "Show in screen sharing", 2.1.2
-single-list export and "import as a new list"; fixes from here are 2.1.x. Change it in
+single-list export and "import as a new list", 2.1.3 the screen-sharing
+warning and Check for updates; fixes from here are 2.1.x. Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`),
 and add an entry at the top of `CHANGELOG.md` in plain, user-facing words.
@@ -91,8 +96,9 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (56 at the time of writing)
+cargo test -p vc-core             # engine tests (58 at the time of writing)
 cargo test -p vc-core --test avatars_live -- --ignored   # real CDN download (network)
+cargo test -p vc-core --test update_live -- --ignored    # real GitHub release check (network)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
 ```
@@ -294,6 +300,15 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   `--ease-launch`, the user's exit curve) while the backdrop fades; a timer
   removes it. Reduced motion: it only fades. The logo also sits in About and
   the empty list.
+- Screen sharing: while `overlay.hide_from_capture` is off, the main window
+  shows a warning banner ("VC Alert shows in screen shares and recordings",
+  Hide it).
+- Updates (Settings → About): Check for updates → `check_update` (GitHub's
+  latest release vs `APP_VERSION`) → "You have the newest version" or
+  "VC Alert x.y.z is out" with Download (`download_update`: this platform's
+  release file into Downloads as `VC-Alert-macOS-x.y.z.dmg` /
+  `VC-Alert-Windows-setup-x.y.z.exe`, then revealed) and What's new
+  (`open_release_page`, a fixed URL). Never automatic.
 - Card hover: Animista's shadow-inset-center (`inset 0 0 14px --card-inset`,
   `--t-inset` on `--ease-inset`); the keyboard focus ring skips that fade.
 - Toasts (`components/Toasts.svelte` + `Toast.svelte`, Animate UI's toast as
@@ -318,7 +333,9 @@ takes URL params:
 `bg=bright|dark|busy`, `overlay=off`, `pics=1` (stand-in pictures for
 everyone but the last person), `snoozed=1` (Sam for 52 min, pixel_fox for
 this call), `reminder=off` (Quiet reminder switched off), `lists=1` (three
-lists: Main, Gaming, Late night), `leave=off` (leave sounds off for everyone). Check 380 × 520 (the minimum window
+lists: Main, Gaming, Late night), `leave=off` (leave sounds off for everyone),
+`capture=on` (visible in screen sharing), `update=1|off` (Check for updates
+finds 2.1.4 / can't reach GitHub). Check 380 × 520 (the minimum window
 size), both Ink and Paper, Tab order, and mid-animation frames.
 Then run the detector:
 `~/.claude/plugins/cache/impeccable/impeccable/4.7.0/skills/impeccable/scripts/impeccable detect --json src design/preview.html`

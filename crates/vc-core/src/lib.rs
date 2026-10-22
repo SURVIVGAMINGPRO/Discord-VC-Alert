@@ -7,5 +7,6 @@ pub mod geometry;
 pub mod sound;
 pub mod store;
 pub mod transfer;
+pub mod update;
 
 pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
