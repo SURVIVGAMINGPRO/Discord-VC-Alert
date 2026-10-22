@@ -32,7 +32,8 @@ v1's spec still describes the intended behaviour.
 ## 1b. Versioning
 
 Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
-the "first launch looks like a crash" fix, and so on (2.0.x). Change it in
+the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
+profile pictures everywhere, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
 
@@ -81,7 +82,8 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (42 at the time of writing)
+cargo test -p vc-core             # engine tests (44 at the time of writing)
+cargo test -p vc-core --test avatars_live -- --ignored   # real CDN download (network)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
 ```
@@ -135,7 +137,10 @@ Ported from v1 and covered by tests; keep them green.
   the login item at startup so older ones get the flag. A manual launch always
   shows and focuses the window. (Hidden + no Dock icon on a manual launch
   looked like a crash on first open.)
-- `avatars/`: 64 px PNGs + `index.json` (v1's format).
+- `avatars/`: 128 px PNGs + `index.json` (v1's format). Pictures can only be
+  fetched for watched people who have been in a voice channel with the user:
+  the user ID and picture hash come from Discord's voice states. They show in
+  the list, the sound sheet, the overlay and the position editor.
 
 ## 6. Import and export (transfer.rs)
 
@@ -195,7 +200,11 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
 - Type: the platform font for the UI; **Atkinson Hyperlegible Mono only for
   usernames and IDs** (class `.id`). Sizes 11/12/13/15/18.
 - Radius by importance: 4 tags, 6 buttons/inputs, 10 rows, 14 sheets, full for
-  avatars and lamps. 4 px spacing grid.
+  avatars, lamps, the status pill and the header's round buttons. 4 px spacing grid.
+- Main window header (layout from the early mockup): one row with the status
+  pill (lamp, state, channel, "n here"), round Quiet and Settings buttons, then
+  Start/Stop. Longer text (what went wrong, what to do, Quiet) unfolds on a
+  line below. Only the channel name truncates (full name in the tooltip).
 - Copy: plain, sentence case, no "please", controls name their action and the
   resulting toast reuses the verb.
 - The overlay uses only `--ov-*` tokens (theme-independent): dark plates with a
@@ -228,7 +237,8 @@ takes URL params:
 `quiet=1`, `wizard=1`, `nocreds=1`, `notice=1`, `empty=1`, `mask=1`,
 `theme=onyx|graphite|paper|system`, `density=comfortable`, overlay
 `style=pictures|count|dots`, `px=8..48`, `n=…`, `join=0`,
-`bg=bright|dark|busy`, `overlay=off`. Check 380 × 520 (the minimum window
+`bg=bright|dark|busy`, `overlay=off`, `pics=1` (stand-in pictures for
+everyone but the last person). Check 380 × 520 (the minimum window
 size), both Ink and Paper, Tab order, and mid-animation frames.
 Then run the detector:
 `~/.claude/plugins/cache/impeccable/impeccable/4.7.0/skills/impeccable/scripts/impeccable detect --json src design/preview.html`

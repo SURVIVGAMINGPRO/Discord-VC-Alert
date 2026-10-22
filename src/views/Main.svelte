@@ -36,27 +36,34 @@
 
   const inCall = $derived(snap.watching ? snap.members.length : 0);
 
+  // One row, as in the early mockup: a status pill (lamp, state, channel,
+  // how many are here), then Quiet, Settings and Start/Stop. Anything longer
+  // (what went wrong, what to do next, Quiet) unfolds on a line below.
   type Status = {
     tone: 'off' | 'warn' | 'live' | 'danger';
     head: string;
-    title?: string;
-    sub: 'count' | string;
-    wrap?: boolean;
+    channel?: string;
+    count?: boolean;
+    sub?: string;
+    tip: string;
     action: 'start' | 'stop' | 'fix';
   };
 
   const status = $derived.by<Status>(() => {
+    const problem = (detail: string): Status => {
+      const sub = detail || 'Check your Discord app details.';
+      return { tone: 'danger', head: 'Setup problem', sub, tip: `Setup problem: ${sub}`, action: 'fix' };
+    };
     if (!snap.watching) {
-      if (snap.status === 'setup_error')
-        return { tone: 'danger', head: 'Setup problem', sub: snap.detail || 'Check your Discord app details.', wrap: true, action: 'fix' };
-      return { tone: 'off', head: 'Not watching', sub: n === 1 ? '1 person on your list' : `${n} people on your list`, action: 'start' };
+      if (snap.status === 'setup_error') return problem(snap.detail);
+      return { tone: 'off', head: 'Not watching', tip: `Not watching. ${n === 1 ? '1 person' : `${n} people`} on your list.`, action: 'start' };
     }
     switch (snap.status) {
       case 'idle_no_channel':
-        return { tone: 'warn', head: 'Connected', sub: 'Join a voice channel to start', action: 'stop' };
+        return { tone: 'warn', head: 'Connected', sub: 'Join a voice channel to start.', tip: 'Connected to Discord, not in a voice channel', action: 'stop' };
       case 'watching_channel': {
         const ch = snap.detail || 'your channel';
-        return { tone: 'live', head: `Watching ${ch}`, title: `Watching ${ch}`, sub: 'count', action: 'stop' };
+        return { tone: 'live', head: 'Watching', channel: ch, count: true, tip: `Watching ${ch}`, action: 'stop' };
       }
       case 'reconnecting': {
         const d = snap.detail ?? '';
@@ -65,14 +72,17 @@
           : d.length > 60
             ? d.slice(0, 60) + '…'
             : d || 'Lost the connection to Discord.';
-        return { tone: 'warn', head: 'Reconnecting…', sub, wrap: true, action: 'stop' };
+        return { tone: 'warn', head: 'Reconnecting…', sub, tip: `Reconnecting: ${sub}`, action: 'stop' };
       }
       case 'setup_error':
-        return { tone: 'danger', head: 'Setup problem', sub: snap.detail, wrap: true, action: 'fix' };
+        return problem(snap.detail);
       default:
-        return { tone: 'warn', head: 'Connecting to Discord…', sub: '', action: 'stop' };
+        return { tone: 'warn', head: 'Connecting to Discord…', tip: 'Connecting to Discord', action: 'stop' };
     }
   });
+  const pillTip = $derived(
+    status.count ? `${status.tip}. ${inCall === 1 ? '1 of your list is' : `${inCall} of your list are`} in the call.` : status.tip,
+  );
 
   const buttonLabel = $derived(
     snap.stopping ? 'Stopping…' : starting ? 'Connecting…' : status.action === 'start' ? 'Start watching' : status.action === 'fix' ? 'Fix in Settings' : 'Stop',
@@ -393,37 +403,49 @@
 
 <div class="main">
   <header class="status">
-    <Lamp tone={status.tone} ping={status.tone === 'live'} />
-    <div class="st">
-      <div class="head" class:one-line={!!status.title} title={status.title}>{status.head}</div>
-      {#if joinedMsg}
-        {#key joinedMsg}<div class="sub joined" in:swapIn>{joinedMsg}</div>{/key}
-      {:else if status.sub === 'count'}
-        <div class="sub">
-          {#if inCall === 0}None of your list are here yet{:else}<span class="live-count"><RollingNumber value={inCall} /> of your list {inCall === 1 ? 'is' : 'are'}</span> in the call{/if}
-        </div>
-      {:else if status.sub}
-        <div class="sub" class:wrap={status.wrap} title={status.wrap ? status.sub : undefined}>{status.sub}</div>
-      {/if}
-      {#if quiet}
-        <div class="quiet">Quiet: no sound or overlay <Button kind="link" small onclick={() => call('toggle_quiet')}>Turn off</Button></div>
-      {/if}
+    <div class="bar">
+      <div class="pill" title={pillTip}>
+        <Lamp tone={status.tone} ping={status.tone === 'live'} />
+        <span class="pill-text">
+          {#key joinedMsg ?? status.head}
+            <span class="lead" class:joined={!!joinedMsg} in:swapIn>{joinedMsg ?? status.head}</span>
+          {/key}
+          {#if status.channel && !joinedMsg}
+            <span class="sep" aria-hidden="true">·</span><span class="channel">{status.channel}</span>
+          {/if}
+          {#if status.count}
+            <span class="sep" aria-hidden="true">·</span><span class="here" class:live={inCall > 0}><RollingNumber value={inCall} /> here</span>
+          {/if}
+        </span>
+      </div>
+      <div class="tools">
+        <IconButton
+          round
+          flat={false}
+          icon={quiet ? 'notifications_off' : 'notifications'}
+          label={quiet ? 'Quiet is on. Turn off' : 'Quiet mode: no sound and no overlay'}
+          active={quiet}
+          onclick={() => call('toggle_quiet')}
+        />
+        <IconButton round flat={false} icon="settings" label="Settings" onclick={() => call('open_settings', { tab: null })} />
+        <Button
+          kind={status.action === 'start' ? 'primary' : status.action === 'fix' ? 'primary' : 'secondary'}
+          swap={buttonLabel}
+          disabled={snap.stopping}
+          onclick={primary}>{buttonLabel}</Button
+        >
+      </div>
     </div>
-    <div class="tools">
-      <IconButton
-        icon={quiet ? 'notifications_off' : 'notifications'}
-        label={quiet ? 'Quiet is on. Turn off' : 'Quiet mode: no sound and no overlay'}
-        active={quiet}
-        onclick={() => call('toggle_quiet')}
-      />
-      <IconButton icon="settings" label="Settings" onclick={() => call('open_settings', { tab: null })} />
-      <Button
-        kind={status.action === 'start' ? 'primary' : status.action === 'fix' ? 'primary' : 'secondary'}
-        swap={buttonLabel}
-        disabled={snap.stopping}
-        onclick={primary}>{buttonLabel}</Button
-      >
-    </div>
+    {#if status.sub}
+      <div class="detail" in:unfold out:fold>
+        {#key status.sub}<p class="detail-in sub" in:swapIn>{status.sub}</p>{/key}
+      </div>
+    {/if}
+    {#if quiet}
+      <div class="detail" in:unfold out:fold>
+        <div class="detail-in quiet">Quiet: no sound or overlay <Button kind="link" small onclick={() => call('toggle_quiet')}>Turn off</Button></div>
+      </div>
+    {/if}
   </header>
 
   {#if setupMissing}
@@ -609,66 +631,93 @@
 
   /* ---------------------------------------------------------- status */
   .status {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sp-3);
     padding: var(--sp-3) var(--sp-4);
     border-bottom: 1px solid var(--line);
     background: var(--surface);
   }
-  .status > :global(.lamp) {
-    margin-top: 7px;
-  }
-  .st {
-    flex: 1;
-    min-width: 0;
-  }
-  .head {
-    font-size: var(--fs-lg);
-    font-weight: var(--fw-bold);
-    line-height: var(--lh-tight);
-    padding: var(--sp-0) 0;
-    text-wrap: balance;
-  }
-  /* Channel names truncate (full name in the tooltip); other headlines wrap. */
-  .head.one-line {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .sub {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-  }
-  .sub.wrap {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    white-space: normal;
-  }
-  .sub.joined,
-  .live-count {
-    color: var(--live-text);
-    font-weight: var(--fw-medium);
-  }
-  .quiet {
+  .bar {
     display: flex;
     align-items: center;
+    gap: var(--sp-3);
+  }
+  .pill {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+    height: var(--h-md);
+    padding: 0 var(--sp-3) 0 var(--sp-2);
+    border-radius: var(--r-full);
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  .pill-text {
+    display: flex;
+    align-items: baseline;
     gap: var(--sp-1);
-    margin-top: var(--sp-0);
-    color: var(--text-3);
-    font-size: var(--fs-sm);
+    min-width: 0;
     white-space: nowrap;
+  }
+  /* Only the channel name (full name in the tooltip) or a long "… joined"
+     gives way; the state word and the count always stay. */
+  .lead,
+  .channel {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lead {
+    flex: none;
+    font-weight: var(--fw-medium);
+  }
+  .lead.joined {
+    flex: 0 1 auto;
+    color: var(--live-text);
+  }
+  .channel {
+    flex: 0 1 auto;
+    color: var(--text-2);
+  }
+  .sep {
+    flex: none;
+    color: var(--text-3);
+  }
+  .here {
+    flex: none;
+    color: var(--text-2);
+  }
+  .here.live {
+    color: var(--live-text);
+    font-weight: var(--fw-medium);
   }
   .tools {
     display: flex;
     flex: none;
     align-items: center;
+    gap: var(--sp-2);
+    margin-left: auto;
+  }
+  .detail-in {
+    margin: 0;
+    padding-top: var(--sp-2);
+  }
+  .sub {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  .quiet {
+    display: flex;
+    align-items: center;
     gap: var(--sp-1);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
   }
 
   /* --------------------------------------------------------- banners */

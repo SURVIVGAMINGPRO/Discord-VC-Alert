@@ -3,7 +3,7 @@
 // click through every screen.
 
 import type { Config, Member, Preview, Snapshot, Target } from './types';
-import { keyOf, parseIdent } from './util';
+import { avatarIndex, keyOf, parseIdent } from './util';
 
 const listeners = new Map<string, Set<(p: any) => void>>();
 const qp = new URLSearchParams(location.search);
@@ -56,7 +56,7 @@ const snap: Snapshot = {
   members: [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.0.2',
+  version: '2.0.3',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,
@@ -89,6 +89,16 @@ function changed() {
   emit('state', snap);
 }
 
+// ?pics=1: stand-in pictures (head-and-shoulders on a tint) so picture layouts
+// can be checked; the last person keeps their letter, as if never seen in a call.
+function fakePic(key: string): string | null {
+  if (qp.get('pics') !== '1' || key === keyOf(people[people.length - 1])) return null;
+  const h = (avatarIndex(key) * 57 + 200) % 360;
+  const fg = `hsl(${h} 30% 86%)`;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='hsl(${h} 42% 46%)'/><circle cx='32' cy='26' r='12' fill='${fg}'/><ellipse cx='32' cy='60' rx='22' ry='17' fill='${fg}'/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
 function member(t: Target): Member {
   return { key: keyOf(t), id: t.id ?? '1', username: t.username ?? '', avatar: null };
 }
@@ -113,7 +123,7 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
     case 'get_state':
       return structuredClone(snap);
     case 'avatar_data':
-      return {};
+      return Object.fromEntries((a.keys as string[]).flatMap((k) => (fakePic(k) ? [[k, fakePic(k)]] : [])));
     case 'add_target': {
       const p = parseIdent(a.ident);
       if (!a.ident.trim()) throw 'Enter a username or user ID.';
@@ -305,7 +315,7 @@ function overlayModel(members: { t: Target; key: string }[], flash: string | nul
     bubble: item.kind === 'badge'
       ? [`+${item.count} more`, item.names.slice(0, 4).map((x: string) => '@' + x).join(', ')]
       : item.label.toLowerCase() !== (item.username || item.key).toLowerCase() ? [item.label, '@' + (item.username || item.key)] : ['@' + (item.username || item.key), ''],
-    avatar: null,
+    avatar: item.kind === 'person' && style === 'pictures' ? fakePic(item.key) : null,
   }));
   return {
     style, px, slot, opacity: o.opacity, corner: o.corner, side, canvas, bar_w: w, bar_h: h, cells,

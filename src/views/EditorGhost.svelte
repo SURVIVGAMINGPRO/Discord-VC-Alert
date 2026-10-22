@@ -2,13 +2,18 @@
   // The draggable ghost bar in setup mode. The whole window is a drag region.
   import { onMount } from 'svelte';
   import { call, on } from '../lib/api';
+  import { avatars, loadAvatars, watchAvatars } from '../lib/app.svelte';
   import { avatarColor, initialOf } from '../lib/util';
   import type { EditorModel } from '../lib/types';
 
   let m = $state<EditorModel | null>(null);
   onMount(() => {
     document.documentElement.dataset.view = 'ghost';
-    const off = on<EditorModel>('editor', (x) => (m = x));
+    const off = on<EditorModel>('editor', (x) => {
+      m = x;
+      loadAvatars(x.cells.flatMap((c) => (c.item.kind === 'person' ? [c.item.key] : [])));
+    });
+    watchAvatars();
     call('editor_refresh');
     return () => off.then((f) => f());
   });
@@ -18,7 +23,9 @@
   {#if m}
     {#each m.cells as c, i (i)}
       <span class="slot" data-tauri-drag-region style:left="{c.x}px" style:top="{c.y}px" style:width="{m.slot}px" style:height="{m.slot}px">
-        {#if c.item.kind === 'person'}
+        {#if c.item.kind === 'person' && avatars[c.item.key]}
+          <img class="face" data-tauri-drag-region src={avatars[c.item.key]} alt="" draggable="false" style:width="{m.px}px" style:height="{m.px}px" />
+        {:else if c.item.kind === 'person'}
           <span class="face" data-tauri-drag-region style:background={avatarColor(c.item.key)} style:width="{m.px}px" style:height="{m.px}px" style:font-size="{Math.max(8, Math.round(m.px * 0.44))}px">
             {m.px >= 14 ? initialOf(c.item.label) : ''}
           </span>
@@ -58,6 +65,7 @@
     font-weight: var(--fw-bold);
     line-height: 1;
     box-shadow: 0 0 0 2px var(--ov-ring);
+    object-fit: cover;
   }
   .empty {
     background: none;

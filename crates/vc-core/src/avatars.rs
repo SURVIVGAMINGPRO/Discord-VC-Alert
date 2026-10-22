@@ -1,16 +1,17 @@
-//! Profile pictures from Discord's public CDN (v1 `avatars.py`): 64 px PNGs,
+//! Profile pictures from Discord's public CDN (v1 `avatars.py`): 128 px PNGs,
 //! cached on disk with an `index.json` so people seen before show a real
 //! picture straight away. Circle masking and scaling happen in the UI.
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 pub const CDN: &str = "https://cdn.discordapp.com";
-pub const SRC_PX: u32 = 64;
+/// 128 px keeps pictures sharp on Retina screens up to the overlay's 48 px.
+pub const SRC_PX: u32 = 128;
 pub const MAX_BYTES: usize = 300_000;
 pub const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
 pub const RETRY_AFTER: Duration = Duration::from_secs(60);
@@ -63,7 +64,9 @@ pub type Spawner = Arc<dyn Fn(std::pin::Pin<Box<dyn std::future::Future<Output =
 pub struct AvatarCache {
     dir: PathBuf,
     index: Mutex<BTreeMap<String, UserRef>>,
-    inflight: Mutex<HashSet<String>>,
+    /// File name being downloaded → everyone waiting for it (people without a
+    /// custom picture share Discord's default ones).
+    inflight: Mutex<HashMap<String, Vec<String>>>,
     failed: Mutex<HashMap<String, Instant>>,
     on_ready: OnReady,
     spawn: Spawner,
@@ -78,7 +81,7 @@ impl AvatarCache {
         Arc::new(AvatarCache {
             dir: dir.to_path_buf(),
             index: Mutex::new(index),
-            inflight: Mutex::new(HashSet::new()),
+            inflight: Mutex::new(HashMap::new()),
             failed: Mutex::new(HashMap::new()),
             on_ready,
             spawn,
@@ -96,7 +99,8 @@ impl AvatarCache {
         }
     }
 
-    pub fn remember(&self, key: &str, user: &UserRef) {
+    /// Returns true when this person's picture reference changed.
+    pub fn remember(&self, key: &str, user: &UserRef) -> bool {
         let changed = {
             let mut idx = self.index.lock().unwrap();
             if idx.get(&Self::k(key)) == Some(user) {
@@ -109,6 +113,7 @@ impl AvatarCache {
         if changed {
             self.save_index();
         }
+        changed
     }
 
     /// The cached picture for this person's last-known avatar, if on disk.
@@ -129,13 +134,18 @@ impl AvatarCache {
     /// v1 `request`: remember the user; return the file if cached, otherwise
     /// start one background download (with a 60 s back-off after failures).
     pub fn request(self: &Arc<Self>, key: &str, user: &UserRef) -> Option<PathBuf> {
-        self.remember(key, user);
+        let changed = self.remember(key, user);
         let name = avatar_filename(user);
         if !safe_name(&name) {
             return None;
         }
         let path = self.dir.join(&name);
         if path.exists() {
+            // Already on disk (often a shared default picture): if this person
+            // now points at it, tell the UI so their letter becomes the picture.
+            if changed {
+                (self.on_ready)(key.to_string());
+            }
             return Some(path);
         }
         if let Some(t) = self.failed.lock().unwrap().get(&name) {
@@ -143,17 +153,25 @@ impl AvatarCache {
                 return None;
             }
         }
-        if !self.inflight.lock().unwrap().insert(name.clone()) {
-            return None;
+        {
+            let mut inflight = self.inflight.lock().unwrap();
+            if let Some(waiting) = inflight.get_mut(&name) {
+                if !waiting.iter().any(|k| k == key) {
+                    waiting.push(key.to_string());
+                }
+                return None;
+            }
+            inflight.insert(name.clone(), vec![key.to_string()]);
         }
         let me = self.clone();
         let url = avatar_url(user);
-        let key = key.to_string();
         (self.spawn)(Box::pin(async move {
             let ok = me.download(&url, &path).await;
-            me.inflight.lock().unwrap().remove(&name);
+            let waiting = me.inflight.lock().unwrap().remove(&name).unwrap_or_default();
             if ok {
-                (me.on_ready)(key);
+                for key in waiting {
+                    (me.on_ready)(key);
+                }
             } else {
                 me.failed.lock().unwrap().insert(name, Instant::now());
             }
@@ -234,7 +252,7 @@ mod tests {
     #[test]
     fn urls_and_names() {
         let u = UserRef { id: "123456789012345678".into(), avatar: Some("a45".into()), username: "x".into() };
-        assert_eq!(avatar_url(&u), "https://cdn.discordapp.com/avatars/123456789012345678/a45.png?size=64");
+        assert_eq!(avatar_url(&u), "https://cdn.discordapp.com/avatars/123456789012345678/a45.png?size=128");
         assert_eq!(avatar_filename(&u), "123456789012345678_a45.png");
         let d = UserRef { id: "123456789012345678".into(), avatar: None, username: "x".into() };
         let i = (123456789012345678u64 >> 22) % 6;
@@ -242,6 +260,41 @@ mod tests {
         assert_eq!(avatar_filename(&d), format!("default_{i}.png"));
         assert_eq!(default_index("abc"), 0);
         assert!(!is_png(b"GIF89a"));
+    }
+
+    #[test]
+    fn a_picture_already_on_disk_still_refreshes_the_ui() {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = Arc::new(Mutex::new(Vec::<String>::new()));
+        let r = ready.clone();
+        let c = AvatarCache::new(dir.path(), Arc::new(move |k| r.lock().unwrap().push(k)), Arc::new(|_| panic!("no download expected")));
+        // Two people without a custom picture share Discord's default one.
+        let a = UserRef { id: "4194304".into(), avatar: None, username: "a".into() };
+        let b = UserRef { id: "4194304".into(), avatar: None, username: "b".into() };
+        let mut png = PNG_MAGIC.to_vec();
+        png.resize(100, 0);
+        std::fs::write(dir.path().join(avatar_filename(&a)), &png).unwrap();
+        assert!(c.request("a", &a).is_some());
+        assert!(c.request("b", &b).is_some());
+        assert!(c.request("b", &b).is_some(), "same picture again: no repeat refresh");
+        assert_eq!(ready.lock().unwrap().as_slice(), ["a", "b"]);
+        assert!(c.data_url("b").is_some());
+    }
+
+    #[test]
+    fn everyone_waiting_on_one_download_is_told() {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = Arc::new(Mutex::new(Vec::<String>::new()));
+        let r = ready.clone();
+        let jobs: Arc<Mutex<Vec<std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>>>> = Arc::default();
+        let j = jobs.clone();
+        let c = AvatarCache::new(dir.path(), Arc::new(move |k| r.lock().unwrap().push(k)), Arc::new(move |f| j.lock().unwrap().push(f)));
+        let a = UserRef { id: "4194304".into(), avatar: None, username: "a".into() };
+        let b = UserRef { id: "4194304".into(), avatar: None, username: "b".into() };
+        assert!(c.request("a", &a).is_none());
+        assert!(c.request("b", &b).is_none());
+        assert_eq!(jobs.lock().unwrap().len(), 1, "one download for the shared file");
+        assert_eq!(c.inflight.lock().unwrap().values().next().unwrap(), &vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]

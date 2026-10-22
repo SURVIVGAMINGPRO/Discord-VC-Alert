@@ -8,11 +8,11 @@ token, nothing posted anywhere, and nobody else can see it.
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.2_universal.dmg` and drag VC Alert to
+- **macOS:** open `VC Alert_2.0.3_universal.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.2_x64-setup.exe` (no admin needed), or use the
+- **Windows:** run `VC Alert_2.0.3_x64-setup.exe` (no admin needed), or use the
   portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
@@ -82,7 +82,9 @@ Your friends need their own Discord application (steps 1–6 above).
   `http://localhost` is under OAuth2 → Redirects.
 - **No popup in Discord**: look inside the Discord app itself; then
   **Settings → Connection → Forget** and try again.
-- **A beep but no picture**: the picture is still downloading, or you're offline.
+- **A letter instead of a picture**: VC Alert learns someone's picture the
+  first time they're in a voice channel with you while it's watching, and keeps
+  it for next time. Until then it shows their first letter.
 - **The overlay hides behind a game**: switch the game to borderless or
   windowed. Nothing can draw over exclusive full screen.
 
@@ -92,7 +94,8 @@ then delete the application in the Developer Portal.
 ## Where things are kept
 
 - Settings: `~/Library/Application Support/VC Alert/` (macOS) or
-  `%APPDATA%\VC Alert\` (Windows).
+  `%APPDATA%\VC Alert\` (Windows). Profile pictures are saved in its
+  `avatars` folder.
 - Your Client Secret and Discord approval: your system's keychain
   (Keychain on macOS, Credential Manager on Windows).
 

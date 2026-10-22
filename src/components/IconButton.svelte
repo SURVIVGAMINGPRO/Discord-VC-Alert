@@ -1,7 +1,8 @@
 <script lang="ts">
   // A square icon button. When `icon` changes, the icons swap in place (scale
   // from 0.5 out of a light blur). `tone="accent"` keeps it tinted, e.g. the
-  // speaker of someone with their own sound.
+  // speaker of someone with their own sound. `round` (with `flat={false}`) is
+  // the header's circular style.
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
   import { iconIn, iconOut } from '../lib/motion';
@@ -11,6 +12,7 @@
     active = false,
     size = 30,
     flat = true,
+    round = false,
     tone,
     disabled = false,
     tabindex,
@@ -21,6 +23,7 @@
     active?: boolean;
     size?: number;
     flat?: boolean;
+    round?: boolean;
     tone?: 'accent';
     disabled?: boolean;
     tabindex?: number;
@@ -33,6 +36,7 @@
   class="ib"
   class:active
   class:boxed={!flat}
+  class:round
   class:accent={tone === 'accent'}
   aria-label={label}
   title={label}
@@ -73,6 +77,9 @@
     box-shadow: inset 0 0 0 1px var(--line-strong);
     background: var(--raised);
   }
+  .round {
+    border-radius: var(--r-full);
+  }
   .ib:hover:not(:disabled) {
     background: var(--hover);
     color: var(--text);
@@ -90,6 +97,9 @@
   .active:hover:not(:disabled) {
     background: var(--accent-wash);
     color: var(--accent-text);
+  }
+  .boxed.active {
+    box-shadow: inset 0 0 0 1px var(--accent);
   }
   .ib:disabled {
     color: var(--text-3);
