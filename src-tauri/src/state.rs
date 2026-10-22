@@ -130,11 +130,12 @@ impl AppState {
         let displays = self.displays.lock().unwrap().clone();
         let has_secret = self.secrets.has_secret();
         let fallback = self.secrets.fallback_note.lock().unwrap().clone();
+        let unreadable = self.secrets.read_note.lock().unwrap().clone();
         let config = self.cfg();
         // Lock order everywhere: ui, then run.
         let ui = self.ui.lock().unwrap();
         let run = self.run.lock().unwrap();
-        let notice = ui.notice.clone().or(fallback);
+        let notice = ui.notice.clone().or(unreadable).or(fallback);
         Snapshot {
             config,
             has_secret,
@@ -266,6 +267,9 @@ impl AppState {
         if cfg.client_id.trim().is_empty() || !self.secrets.has_secret() {
             return Err("needs-credentials".into());
         }
+        // Saved but unreadable (the keychain prompt was denied): ask again
+        // here, and say so, rather than starting without a secret.
+        self.secrets.readable()?;
         if cfg.targets.is_empty() {
             return Err("Add at least one person to watch first.".into());
         }

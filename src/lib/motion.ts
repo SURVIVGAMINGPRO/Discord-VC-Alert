@@ -242,31 +242,6 @@ export function menuPop(node: Element, { out = false } = {}): TransitionConfig {
   };
 }
 
-export function dialogIn(_node: Element): TransitionConfig {
-  alive(_node);
-  const from = num('--dialog-from');
-  const r = reduced();
-  return {
-    duration: r ? ms('--t-fade') : ms('--spring-dialog-dur'),
-    easing: r ? ease('--ease-out') : ease('--spring-dialog-ease'),
-    css: (t) => (r ? `opacity:${t}` : `opacity:${Math.min(1, t * 2.5)};transform:scale(${from + (1 - from) * t})`),
-  };
-}
-
-export function dialogOut(node: Element): TransitionConfig {
-  makeInert(node);
-  const r = reduced();
-  return {
-    duration: ms('--t-dismiss'),
-    easing: ease('--ease-away'),
-    css: (t) => (r ? `opacity:${t}` : `opacity:${t};transform:scale(${0.96 + 0.04 * t})`),
-  };
-}
-
-/** Alert dialogs (Animate UI): the card tips forward from the top to upright,
- *  growing from --dialog-from out of a light blur on the dialog spring, its
- *  fade running ahead (--t-overlay, soft) so it reads early. It leaves the
- *  way it came on the dismiss curve. Reduced motion: it only fades. */
 export function alertIn(_node: Element): TransitionConfig {
   alive(_node);
   const from = num('--dialog-from');
@@ -303,36 +278,26 @@ export function alertOut(node: Element): TransitionConfig {
   };
 }
 
-/** The alert dialog's backdrop: its tint and blur grow from nothing (never an
- *  opacity fade, which would cross-fade a sharp page with a blurred one). */
-export function alertScrimIn(_node: Element): TransitionConfig {
+/** A dialog's backdrop (alert dialogs and sheets): its tint and blur grow from
+ *  nothing (never an opacity fade, which would cross-fade a sharp page with a
+ *  blurred one). `color` is the tint's token. */
+export function alertScrimIn(_node: Element, { color = '--alert-scrim' } = {}): TransitionConfig {
   alive(_node);
   const blur = num('--blur-backdrop');
   return {
     duration: ms('--t-overlay'),
     easing: ease('--ease-soft'),
     css: (t) =>
-      `background-color:color-mix(in srgb, var(--alert-scrim) ${t * 100}%, transparent);backdrop-filter:blur(${t * blur}px);-webkit-backdrop-filter:blur(${t * blur}px)`,
+      `background-color:color-mix(in srgb, var(${color}) ${t * 100}%, transparent);backdrop-filter:blur(${t * blur}px);-webkit-backdrop-filter:blur(${t * blur}px)`,
   };
 }
 
-export function alertScrimOut(node: Element): TransitionConfig {
-  const cfg = alertScrimIn(node); // the same way out, on the same timing
+export function alertScrimOut(node: Element, opts: { color?: string } = {}): TransitionConfig {
+  const cfg = alertScrimIn(node, opts); // the same way out, on the same timing
   makeInert(node);
   return cfg;
 }
 
-export function backdropIn(_node: Element): TransitionConfig {
-  alive(_node);
-  return { duration: ms('--t-overlay'), easing: ease('--ease-soft'), css: (t) => `opacity:${t}` };
-}
-
-export function backdropOut(node: Element): TransitionConfig {
-  makeInert(node);
-  return { duration: ms('--t-dismiss'), easing: ease('--ease-away'), css: (t) => `opacity:${t}` };
-}
-
-/** Unfolding sections and banners: height opens, content clears from a blur. */
 export function unfold(node: Element): TransitionConfig {
   alive(node);
   const el = node as HTMLElement;
@@ -415,7 +380,12 @@ export function bump(el: Element | undefined | null) {
  * once, then animate the transform from where it is right now, so a second
  * click mid-flight retargets smoothly.
  */
-export function slideHighlight(hl: HTMLElement | undefined, target: HTMLElement | undefined | null, animate = true) {
+export function slideHighlight(
+  hl: HTMLElement | undefined,
+  target: HTMLElement | undefined | null,
+  animate = true,
+  spring: 'selection' | 'reflow' = 'selection',
+) {
   if (!hl || !target) return;
   const before = hl.getBoundingClientRect();
   const parent = hl.offsetParent as HTMLElement | null;
@@ -435,7 +405,7 @@ export function slideHighlight(hl: HTMLElement | undefined, target: HTMLElement 
   play(
     hl,
     [{ transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transform: 'none' }],
-    '--spring-selection-dur',
-    '--spring-selection-ease',
+    `--spring-${spring}-dur`,
+    `--spring-${spring}-ease`,
   );
 }

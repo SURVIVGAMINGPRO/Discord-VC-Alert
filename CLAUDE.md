@@ -44,7 +44,8 @@ options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, 2.1.0
 the logo, its launch zoom, the card hover shadow and GitHub Releases, 2.1.1
 lists, group calls, leave sound choices and "Show in screen sharing", 2.1.2
 single-list export and "import as a new list", 2.1.3 the screen-sharing
-warning and Check for updates; fixes from here are 2.1.x. Change it in
+warning and Check for updates, 2.1.4 keychain safety after updates and the
+menu highlight / sheet motion; fixes from here are 2.1.x. Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`),
 and add an entry at the top of `CHANGELOG.md` in plain, user-facing words.
@@ -168,6 +169,11 @@ Ported from v1 and covered by tests; keep them green.
 - Secrets: one keychain item (service "VC Alert", account "discord") holding
   `{client_secret, token}`, so macOS asks at most once. Falls back to
   `secrets.json` (0600) if the keychain can't be used, with a notice in the UI.
+  Updates keep everything (settings and secrets live outside the app). If a
+  keychain *read* fails (macOS may ask again after an unsigned update and the
+  user can deny it), `secrets.rs` remembers that instead of treating the
+  secret as missing: nothing is written over it, the UI shows a notice
+  ("choose Always Allow"), and Start / Test connection ask the keychain again.
 - `backups/`: a copy of settings.json before every import or restore (last 10).
 - `general.start_minimized` ("Start in the background") applies only when the
   login item opens VC Alert: it passes `--autostart`, and the app re-registers
@@ -293,7 +299,13 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   `AlertDialog`), and "n people". `AlertDialog` is Animate UI's alert dialog:
   the card tips from the top (`--dialog-tip`, `--dialog-perspective`) on the
   dialog spring, its fade ahead; the backdrop's `--alert-scrim` tint and
-  `--blur-backdrop` grow from nothing. Cancel has focus first.
+  `--blur-backdrop` grow from nothing. Cancel has focus first. Sheets move
+  the same way (`alertIn`/`alertOut`, scrim `--scrim`). The picker's chevron
+  turns over while its menu is open.
+- Menus: one highlight (`.hl`) glides behind the item under the pointer or
+  the arrow keys (`slideHighlight` on the reflow spring, Animate UI's
+  highlight), fades in from nothing, out when the pointer leaves, and turns
+  `--danger-wash` behind Delete.
 - Launch: the logo (`components/Logo.svelte`, `assets/appicon.svg`) shows for
   `--t-launch-hold`, then Animista's slide-out-fwd-center (translateZ to
   `--launch-depth` under `--launch-perspective`, fading, `--t-launch` on

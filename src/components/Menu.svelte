@@ -1,8 +1,11 @@
 <script lang="ts">
   // A small menu that grows from where it was opened (the button or pointer).
+  // One highlight glides behind the item under the pointer or the arrow keys
+  // (Animate UI: spring.highlight, our reflow spring), fading in from nothing
+  // and out when the pointer leaves; it turns red behind a destructive item.
   import Icon from './Icon.svelte';
   import type { IconName } from '../lib/icons';
-  import { gone, menuPop } from '../lib/motion';
+  import { gone, menuPop, slideHighlight } from '../lib/motion';
   export interface MenuItem {
     label: string;
     icon?: IconName;
@@ -15,6 +18,20 @@
   let el: HTMLDivElement | undefined = $state();
   let pos = $state({ left: 0, top: 0, origin: '0 0' });
   let ready = $state(false);
+  let hl: HTMLSpanElement | undefined = $state();
+  let lit = false;
+  let litDanger = $state(false);
+
+  function light(btn: HTMLElement | null) {
+    if (!btn || !hl) return;
+    litDanger = btn.classList.contains('danger');
+    slideHighlight(hl, btn, lit, 'reflow');
+    lit = true;
+  }
+  function unlight() {
+    lit = false;
+    if (hl) hl.style.opacity = '0';
+  }
 
   $effect(() => {
     if (!el) return;
@@ -29,11 +46,13 @@
   function nav(e: KeyboardEvent) {
     const btns = [...(el?.querySelectorAll<HTMLButtonElement>('button') ?? [])];
     const i = btns.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === 'ArrowDown') btns[(i + 1) % btns.length]?.focus();
-    else if (e.key === 'ArrowUp') btns[(i - 1 + btns.length) % btns.length]?.focus();
+    let next: HTMLButtonElement | undefined;
+    if (e.key === 'ArrowDown') next = btns[(i + 1) % btns.length];
+    else if (e.key === 'ArrowUp') next = btns[(i - 1 + btns.length) % btns.length];
     else if (e.key === 'Escape' || e.key === 'Tab') onclose();
     else return;
     e.preventDefault();
+    next?.focus();
   }
 </script>
 
@@ -52,13 +71,20 @@
   in:menuPop|global
   out:menuPop|global={{ out: true }}
   onkeydown={nav}
+  onfocusin={(e) => {
+    const b = e.target as HTMLElement;
+    if (b.matches(':focus-visible')) light(b);
+  }}
+  onpointerleave={unlight}
 >
+  <span class="hl" class:danger={litDanger} bind:this={hl} aria-hidden="true"></span>
   {#each items as it}
     <button
       type="button"
       role={it.checked === undefined ? 'menuitem' : 'menuitemradio'}
       aria-checked={it.checked}
       class:danger={it.danger}
+      onpointerenter={(e) => light(e.currentTarget)}
       onclick={() => {
         onclose();
         it.run();
@@ -90,7 +116,26 @@
       var(--shadow-pop);
     outline: none;
   }
+  .hl {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-radius: var(--r-sm);
+    background: var(--hover);
+    opacity: 0;
+    pointer-events: none;
+    transform-origin: 0 0;
+    transition:
+      opacity var(--t-fade) var(--ease-color),
+      background-color var(--t-fade) var(--ease-color);
+  }
+  .hl.danger {
+    background: var(--danger-wash);
+  }
   button {
+    position: relative;
     display: flex;
     align-items: center;
     gap: var(--sp-2);
@@ -102,24 +147,19 @@
     background: none;
     color: var(--text);
     text-align: left;
-    transition: background-color var(--t-fade) var(--ease-color);
+    transition: color var(--t-fade) var(--ease-color);
   }
   button :global(.icon) {
     color: var(--text-2);
   }
-  button:hover,
   button:focus-visible {
-    background: var(--hover);
     outline: none;
   }
   .danger,
   .danger :global(.icon) {
     color: var(--danger-text);
   }
-  .danger:hover,
-  .danger:focus-visible {
-    background: var(--danger-wash);
-  }
+
   .slot {
     display: inline-flex;
     flex: none;

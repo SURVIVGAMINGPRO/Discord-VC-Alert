@@ -7,6 +7,25 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.1.4 (2026-10-23)
+
+### Fixed
+- **Your Discord details survive updates.** Your lists, people, settings and
+  App ID were already kept, and the secret and login stay in the keychain.
+  macOS may ask once after an update whether VC Alert can read them: choose
+  **Always Allow**. If you choose Deny, VC Alert now says so and leaves your
+  saved secret alone (before, it could look like it was missing); press
+  **Start** or **Test connection** to be asked again.
+- Opening a sheet (like **Add with a name…**) puts the cursor in its first
+  field again.
+
+### Changed
+- Menus: one soft highlight glides from item to item as you move the pointer
+  or use the arrow keys, and turns red behind **Delete**.
+- Sheets open like the confirmation dialogs: they tip forward from the top
+  out of a light blur, while the window behind them darkens and blurs.
+- The arrow next to the list name turns over while the list menu is open.
+
 ## 2.1.3 (2026-10-23)
 
 ### Added

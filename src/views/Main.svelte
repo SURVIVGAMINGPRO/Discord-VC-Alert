@@ -621,6 +621,7 @@
     <button
       type="button"
       class="picker"
+      class:open={menu?.label === 'Lists'}
       bind:this={picker}
       aria-haspopup="menu"
       aria-label="List: {listName}. Change list"
@@ -982,6 +983,10 @@
   }
   .picker :global(.icon) {
     color: var(--text-3);
+    transition: transform var(--t-menu) var(--ease-soft);
+  }
+  .picker.open :global(.icon) {
+    transform: rotate(180deg);
   }
   .picker-name {
     overflow: hidden;
@@ -997,6 +1002,9 @@
   @media (prefers-reduced-motion: reduce) {
     .picker:active {
       transform: none;
+    }
+    .picker :global(.icon) {
+      transition: none;
     }
   }
 

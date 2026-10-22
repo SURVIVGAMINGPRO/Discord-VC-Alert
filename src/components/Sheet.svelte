@@ -1,9 +1,11 @@
 <script lang="ts">
-  // A modal sheet. The backdrop fades in; the sheet scales up from
-  // --dialog-from with the dialog spring. Closing leaves with --ease-away.
+  // A modal sheet, moving like Animate UI's dialog: it tips forward from the
+  // top to upright, growing from --dialog-from out of a light blur on the
+  // dialog spring (its fade ahead), and leaves the way it came on the dismiss
+  // curve. The backdrop's tint and blur grow from nothing.
   import type { Snippet } from 'svelte';
   import IconButton from './IconButton.svelte';
-  import { backdropIn, backdropOut, dialogIn, dialogOut } from '../lib/motion';
+  import { alertIn, alertOut, alertScrimIn, alertScrimOut } from '../lib/motion';
   let {
     title,
     subtitle,
@@ -26,7 +28,8 @@
   let box: HTMLDivElement | undefined = $state();
   const restore = typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null;
   $effect(() => {
-    box?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not([aria-label="Close"])')?.focus() ?? box?.focus();
+    const first = box?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not([aria-label="Close"])');
+    (first ?? box)?.focus();
     return () => restore?.focus?.();
   });
 
@@ -55,7 +58,12 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" in:backdropIn|global out:backdropOut|global onclick={onclose}></div>
+<div
+  class="backdrop"
+  in:alertScrimIn|global={{ color: '--scrim' }}
+  out:alertScrimOut|global={{ color: '--scrim' }}
+  onclick={onclose}
+></div>
 <div class="center">
   <div
     class="sheet"
@@ -65,8 +73,8 @@
     tabindex="-1"
     bind:this={box}
     style:width="min({width}px, calc(100vw - var(--sp-6)))"
-    in:dialogIn|global
-    out:dialogOut|global
+    in:alertIn|global
+    out:alertOut|global
     onkeydown={trap}
   >
     <header>
@@ -88,6 +96,8 @@
     inset: 0;
     z-index: 50;
     background: var(--scrim);
+    backdrop-filter: blur(var(--blur-backdrop));
+    -webkit-backdrop-filter: blur(var(--blur-backdrop));
   }
   .center {
     position: fixed;

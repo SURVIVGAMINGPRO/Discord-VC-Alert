@@ -304,6 +304,7 @@ pub async fn dismiss_notice(app: AppHandle) {
     let s = state(&app);
     s.ui.lock().unwrap().notice = None;
     *s.secrets.fallback_note.lock().unwrap() = None;
+    *s.secrets.read_note.lock().unwrap() = None;
     s.changed();
 }
 
@@ -333,6 +334,8 @@ pub async fn reveal_secret(app: AppHandle) -> String {
 #[tauri::command]
 pub async fn test_connection(app: AppHandle) -> R<String> {
     let s = state(&app);
+    // A keychain read that was denied gets asked again here, on purpose.
+    s.secrets.readable()?;
     let creds = s.creds();
     if creds.client_id.is_empty() || creds.client_secret.is_empty() {
         return Err("Add the Application ID and Client Secret first.".into());
