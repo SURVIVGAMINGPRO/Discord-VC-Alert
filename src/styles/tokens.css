@@ -50,6 +50,7 @@
   --h-sm: 24px;
   --h-md: 30px;
   --h-lg: 36px;
+  --lamp: 10px; /* the status lamp */
 
   /* -------------------------------------------------------------- motion */
   /* Springs from Animate UI (scripts/css-timing.mjs), as CSS linear() curves. */

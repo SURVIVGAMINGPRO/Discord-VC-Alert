@@ -646,7 +646,7 @@
   .bar {
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
+    gap: var(--sp-2);
   }
   .pill {
     display: flex;
@@ -655,7 +655,8 @@
     gap: var(--sp-2);
     min-width: 0;
     height: var(--h-md);
-    padding: 0 var(--sp-3) 0 var(--sp-2);
+    /* The lamp sits at the centre of the pill's round end. */
+    padding: 0 var(--sp-3) 0 calc((var(--h-md) - var(--lamp)) / 2);
     border-radius: var(--r-full);
     background: var(--bg);
     box-shadow: inset 0 0 0 1px var(--line);
@@ -844,7 +845,7 @@
     gap: var(--sp-3);
     width: 100%;
     margin-block: calc(var(--sp-2) / 2);
-    padding: var(--row-y) var(--sp-3);
+    padding: var(--row-y) var(--sp-3) var(--row-y) var(--row-y);
     border: 0;
     border-radius: var(--r-md);
     background: var(--hover);

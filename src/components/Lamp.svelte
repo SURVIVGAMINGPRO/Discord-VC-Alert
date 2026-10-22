@@ -12,8 +12,8 @@
   .lamp {
     position: relative;
     flex: none;
-    width: 10px;
-    height: 10px;
+    width: var(--lamp);
+    height: var(--lamp);
     border-radius: var(--r-full);
     background: var(--text-3);
     transition:

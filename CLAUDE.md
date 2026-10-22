@@ -34,7 +34,8 @@ v1's spec still describes the intended behaviour.
 Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
 the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
 profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
-scrollbar, 2.0.6 no console window on Windows, and so on (2.0.x). Change it in
+scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
+and no Space switching on macOS, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
 
@@ -180,6 +181,11 @@ are created from async contexts (creating them from sync commands or event
 handlers deadlocks on Windows). The display list is cached and refreshed in
 `get_state` only.
 
+**Spaces (macOS):** the main and Settings windows use
+`platform::follow_active_space` (MoveToActiveSpace), so opening VC Alert from
+the Dock or menu bar brings the window to the current Space instead of
+switching to the one it was last on.
+
 **Do not touch `crates/vc-core` or `src-tauri` for UI work.** If a UI change
 needs a new command, ask first. Tauri converts command args to camelCase
 (`clientId`), but struct fields inside an object stay snake_case
@@ -204,12 +210,15 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   avatars, lamps, pills (the status pill, the "Custom" tag) and round icon
   buttons. 4 px spacing grid.
 - Main window header (layout from the early mockup): one row with the status
-  pill (lamp, state, channel, "n here"), round Quiet and Settings buttons, then
+  pill (lamp centred in its round end, state, channel, "n here"), round Quiet
+  and Settings buttons, then
   Start/Stop. Longer text (what went wrong, what to do, Quiet) unfolds on a
   line below. Only the channel name truncates (full name in the tooltip).
 - The list (layout from the same mockup): headings "In your channel · 2";
   each person is a card (surface, hairline edge, 8 px apart, no dividers):
-  36 px avatar, name, then @username/ID and, while in the channel, "joined
+  `--avatar` picture with equal space above, below and to its left (padding
+  `--row-y`; the text stays within the avatar's height), name, then
+  @username/ID and, while in the channel, "joined
   2 min ago" in green. Right side: a "Custom" tag for their own sound; on hover
   or focus a round More (⋯) button takes its place (the tag hides at once).
   Sound… lives in that menu. The list has no scrollbar (it made the right-hand

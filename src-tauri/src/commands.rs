@@ -483,8 +483,9 @@ pub fn open_settings_window(app: &AppHandle, tab: Option<String>) {
     } else {
         b = b.center();
     }
-    if let Err(e) = b.build() {
-        eprintln!("settings window: {e}");
+    match b.build() {
+        Ok(w) => crate::platform::follow_active_space(&w),
+        Err(e) => eprintln!("settings window: {e}"),
     }
 }
 

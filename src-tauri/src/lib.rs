@@ -147,6 +147,7 @@ pub fn run() {
                 .visible(false)
                 .center()
                 .build()?;
+            platform::follow_active_space(&main);
             let args: Vec<String> = std::env::args().collect();
             if cfg.general.start_minimized && launched_at_login(&args) {
                 let _ = main.minimize();

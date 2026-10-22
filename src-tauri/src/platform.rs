@@ -1,4 +1,4 @@
-//! Native tweaks for the overlay window that Tauri doesn't expose.
+//! Native window tweaks that Tauri doesn't expose.
 
 use tauri::WebviewWindow;
 
@@ -42,6 +42,30 @@ pub fn make_overlay(win: &WebviewWindow) {
         }
     }
     #[cfg(not(any(target_os = "macos", windows)))]
+    let _ = win;
+}
+
+/// macOS: opening VC Alert (Dock, menu bar, login) brings the window to the
+/// Space you're on instead of switching you to the Space it was last on
+/// (NSWindowCollectionBehaviorMoveToActiveSpace). Elsewhere a no-op.
+pub fn follow_active_space(win: &WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::msg_send;
+        use objc2::runtime::AnyObject;
+        let w = win.clone();
+        let _ = win.run_on_main_thread(move || {
+            let Ok(ptr) = w.ns_window() else { return };
+            let ns = ptr as *mut AnyObject;
+            if ns.is_null() {
+                return;
+            }
+            unsafe {
+                let _: () = msg_send![ns, setCollectionBehavior: 1usize << 1];
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
     let _ = win;
 }
 
