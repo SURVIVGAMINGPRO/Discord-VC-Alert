@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Share a list with friends, back everything up, or write a VC Alert 1 file.
+  // Share a list with friends, or back everything up.
   import Sheet from '../components/Sheet.svelte';
   import Button from '../components/Button.svelte';
   import Icon from '../components/Icon.svelte';
@@ -28,7 +28,7 @@
   const options = $derived<ExportOptions>({
     kind,
     keys: who === 'some' ? Object.keys(picked).filter((k) => picked[k]) : null,
-    embed_sounds: kind !== 'v1' && embed,
+    embed_sounds: embed,
     include_credentials: kind === 'backup' && creds,
     name: kind === 'watchlist' && name.trim() ? name.trim() : null,
   });
@@ -60,9 +60,8 @@
   }
 
   const ABOUT = {
-    watchlist: 'Names, usernames and per-person beeps. Never your Discord app details or settings. VC Alert 1 can read it too.',
+    watchlist: 'Names, usernames and per-person beeps. Never your Discord app details or settings.',
     backup: 'Everything: your list, sounds and settings. Keep it for yourself.',
-    v1: 'A config.json for friends still on VC Alert 1. Their Discord app details stay empty.',
   };
 </script>
 
@@ -74,7 +73,6 @@
       options={[
         { value: 'watchlist', label: 'List for friends' },
         { value: 'backup', label: 'Full backup' },
-        { value: 'v1', label: 'VC Alert 1' },
       ]}
       onchange={(v) => (kind = v)}
     />
@@ -111,12 +109,10 @@
       {/if}
     {/if}
 
-    {#if kind !== 'v1'}
-      <div class="opt">
-        <div><div>Include sound files</div><div class="sub">Custom sound files go inside the .json, so they arrive too.</div></div>
-        <Switch label="Include sound files" checked={embed} onchange={(v) => (embed = v)} />
-      </div>
-    {/if}
+    <div class="opt">
+      <div><div>Include sound files</div><div class="sub">Custom sound files go inside the .json, so they arrive too.</div></div>
+      <Switch label="Include sound files" checked={embed} onchange={(v) => (embed = v)} />
+    </div>
     {#if kind === 'backup'}
       <div class="opt">
         <div><div>Include Discord app details</div><div class="sub">Only for moving to another computer of yours.</div></div>

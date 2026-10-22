@@ -21,6 +21,9 @@ pub const AVATAR_MIN: f64 = 8.0;
 pub const AVATAR_MAX: f64 = 48.0;
 pub const MAX_SHOWN: f64 = 8.0;
 pub const LABEL_MAX: usize = 64;
+/// Saved beep profiles: at most this many, with names this long.
+pub const MAX_PROFILES: usize = 3;
+pub const PROFILE_NAME_MAX: usize = 12;
 
 pub const PARSE_ERROR: &str = "Enter a Discord username (letters, numbers, _ and . only; \
 this is the unique username, not the display name) or a numeric user ID.";
@@ -110,9 +113,11 @@ pub struct Beep {
     pub volume: f64,
 }
 
+/// The "Classic" beep: 1700 Hz, 90 ms, 3 beeps, 75% volume. (VC Alert 1 used
+/// 1000 Hz, 180 ms, 60%; files that set their own beep keep it.)
 impl Default for Beep {
     fn default() -> Self {
-        Beep { frequency_hz: 1000, duration_ms: 180, repeats: 3, gap_ratio: 0.5, volume: 0.6 }
+        Beep { frequency_hz: 1700, duration_ms: 90, repeats: 3, gap_ratio: 0.5, volume: 0.75 }
     }
 }
 
@@ -158,12 +163,13 @@ pub fn clean_partial_beep(raw: Option<&Value>) -> PartialBeep {
         is_number(m.get(k)).then(|| num(m.get(k), lo, hi, d, true) as i64)
     };
     let flt = |k: &str, lo, hi, d| is_number(m.get(k)).then(|| num(m.get(k), lo, hi, d, false));
+    let d = Beep::default();
     PartialBeep {
-        frequency_hz: int("frequency_hz", 100.0, 5000.0, 1000.0),
-        duration_ms: int("duration_ms", 20.0, 2000.0, 180.0),
-        repeats: int("repeats", 1.0, 10.0, 3.0),
-        volume: flt("volume", 0.0, 1.0, 0.6),
-        gap_ratio: flt("gap_ratio", 0.0, 3.0, 0.5),
+        frequency_hz: int("frequency_hz", 100.0, 5000.0, d.frequency_hz as f64),
+        duration_ms: int("duration_ms", 20.0, 2000.0, d.duration_ms as f64),
+        repeats: int("repeats", 1.0, 10.0, d.repeats as f64),
+        volume: flt("volume", 0.0, 1.0, d.volume),
+        gap_ratio: flt("gap_ratio", 0.0, 3.0, d.gap_ratio),
     }
 }
 
@@ -228,6 +234,51 @@ pub fn clean_sound(raw: Option<&Value>) -> Option<SoundSpec> {
     let beep = clean_partial_beep(m.get("beep"));
     let spec = SoundSpec { file, beep: (!beep.is_empty()).then_some(beep) };
     (!spec.is_empty()).then_some(spec)
+}
+
+// -------------------------------------------------------------- profiles --
+
+/// A beep the user saved under a name. The rhythm (gap ratio) stays universal.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProfileBeep {
+    pub frequency_hz: i64,
+    pub duration_ms: i64,
+    pub repeats: i64,
+    pub volume: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BeepProfile {
+    pub name: String,
+    pub beep: ProfileBeep,
+}
+
+/// Up to 3 profiles; names cleaned, at most 12 characters, unique
+/// (case-insensitive); values clamped like any beep.
+pub fn clean_profiles(raw: Option<&Value>) -> Vec<BeepProfile> {
+    let Some(Value::Array(items)) = raw else { return Vec::new() };
+    let mut out: Vec<BeepProfile> = Vec::new();
+    for item in items {
+        let Value::Object(m) = item else { continue };
+        let name: String = clean_label(m.get("name").and_then(Value::as_str).unwrap_or(""))
+            .chars()
+            .take(PROFILE_NAME_MAX)
+            .collect::<String>()
+            .trim()
+            .to_string();
+        if name.is_empty() || out.iter().any(|p| p.name.to_lowercase() == name.to_lowercase()) {
+            continue;
+        }
+        let b = clean_partial_beep(m.get("beep")).apply_to(&Beep::default());
+        out.push(BeepProfile {
+            name,
+            beep: ProfileBeep { frequency_hz: b.frequency_hz, duration_ms: b.duration_ms, repeats: b.repeats, volume: b.volume },
+        });
+        if out.len() == MAX_PROFILES {
+            break;
+        }
+    }
+    out
 }
 
 // --------------------------------------------------------------- targets --
@@ -499,6 +550,7 @@ pub struct Config {
     pub cooldown_seconds: f64,
     pub sound_file: String,
     pub beep: Beep,
+    pub beep_profiles: Vec<BeepProfile>,
     pub overlay: Overlay,
     pub general: General,
     pub appearance: Appearance,
@@ -515,6 +567,7 @@ impl Default for Config {
             cooldown_seconds: 5.0,
             sound_file: String::new(),
             beep: Beep::default(),
+            beep_profiles: Vec::new(),
             overlay: Overlay::default(),
             general: General::default(),
             appearance: Appearance::default(),
@@ -567,6 +620,7 @@ impl Config {
             cooldown_seconds: num(m.get("cooldown_seconds").or(Some(&json!(5))), 0.0, 600.0, 5.0, false),
             sound_file: text("sound_file", ""),
             beep: clean_beep(m.get("beep")),
+            beep_profiles: clean_profiles(m.get("beep_profiles")),
             overlay: clean_overlay(m.get("overlay")),
             general: clean_general(m.get("general")),
             appearance: clean_appearance(m.get("appearance")),
@@ -585,6 +639,7 @@ impl Config {
         m.insert("cooldown_seconds".into(), json!(self.cooldown_seconds));
         m.insert("sound_file".into(), json!(self.sound_file));
         m.insert("beep".into(), json!(self.beep));
+        m.insert("beep_profiles".into(), json!(self.beep_profiles));
         m.insert("overlay".into(), json!(self.overlay));
         m.insert("general".into(), json!(self.general));
         m.insert("appearance".into(), json!(self.appearance));
@@ -595,8 +650,8 @@ impl Config {
     /// re-validate. Only settings may be patched, never the list or credentials.
     pub fn patched(&self, patch: &Value) -> Result<Config, String> {
         const SECTIONS: [&str; 5] = ["beep", "overlay", "general", "appearance", "scopes"];
-        const VALUES: [&str; 4] =
-            ["alert_if_already_present", "cooldown_seconds", "sound_file", "redirect_uri"];
+        const VALUES: [&str; 5] =
+            ["alert_if_already_present", "cooldown_seconds", "sound_file", "redirect_uri", "beep_profiles"];
         let Value::Object(p) = patch else { return Err("settings patch must be an object".into()) };
         let mut base = self.to_value();
         let Value::Object(b) = &mut base else { unreachable!() };
@@ -693,7 +748,7 @@ mod tests {
         assert_eq!(b.duration_ms, 200);
         assert_eq!(b.gap_ratio, 0.5);
         let b = clean_beep(Some(&json!({"volume": true, "repeats": "4"})));
-        assert_eq!(b.volume, 0.6);
+        assert_eq!(b.volume, 0.75);
         assert_eq!(b.repeats, 3, "beep keys must be real numbers, like v1");
     }
 
@@ -740,6 +795,35 @@ mod tests {
         assert_eq!(p.overlay.corner, "top-right");
         assert_eq!(p.cooldown_seconds, 600.0);
         assert!(c.patched(&json!({"targets": []})).is_err());
+    }
+
+    #[test]
+    fn classic_is_the_default_beep() {
+        let b = Beep::default();
+        assert_eq!((b.frequency_hz, b.duration_ms, b.repeats, b.volume), (1700, 90, 3, 0.75));
+        assert_eq!(Config::from_value(&json!({})).unwrap().beep, b);
+    }
+
+    #[test]
+    fn profiles_are_capped_and_cleaned() {
+        let c = Config::from_value(&json!({"beep_profiles": [
+            {"name": "  A very long profile name  ", "beep": {"frequency_hz": 9000, "duration_ms": 50, "repeats": 2, "volume": 0.5}},
+            {"name": "a very long profile name", "beep": {}},
+            {"name": "", "beep": {}},
+            {"name": "Soft", "beep": {"volume": 0.4, "gap_ratio": 2.0}},
+            {"name": "Ping", "beep": {}},
+            {"name": "Fourth", "beep": {}},
+            "junk"
+        ]})).unwrap();
+        let names: Vec<&str> = c.beep_profiles.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["A very long", "Soft", "Ping"], "12-char cap, no dupes or blanks, max 3");
+        assert_eq!(c.beep_profiles[0].beep.frequency_hz, 5000);
+        assert_eq!(c.beep_profiles[1].beep.volume, 0.4);
+        assert_eq!(c.beep_profiles[1].beep.frequency_hz, 1700, "missing keys take the Classic values");
+        let again = Config::from_value(&c.to_value()).unwrap();
+        assert_eq!(again.beep_profiles, c.beep_profiles);
+        let p = c.patched(&json!({"beep_profiles": []})).unwrap();
+        assert!(p.beep_profiles.is_empty());
     }
 
     #[test]

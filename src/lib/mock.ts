@@ -26,7 +26,14 @@ const config: Config = {
   alert_if_already_present: true,
   cooldown_seconds: 5,
   sound_file: '',
-  beep: { frequency_hz: 1700, duration_ms: 90, repeats: 3, gap_ratio: 0.5, volume: 1 },
+  beep: { frequency_hz: 1700, duration_ms: 90, repeats: 3, gap_ratio: 0.5, volume: 0.75 },
+  beep_profiles: qp.get('profiles') === '3'
+    ? [
+        { name: 'Low hum', beep: { frequency_hz: 400, duration_ms: 300, repeats: 2, volume: 0.6 } },
+        { name: 'Tick', beep: { frequency_hz: 1900, duration_ms: 50, repeats: 1, volume: 0.7 } },
+        { name: 'Night mode', beep: { frequency_hz: 900, duration_ms: 120, repeats: 2, volume: 0.35 } },
+      ]
+    : [{ name: 'Low hum', beep: { frequency_hz: 400, duration_ms: 300, repeats: 2, volume: 0.6 } }],
   overlay: {
     enabled: qp.get('overlay') !== 'off', corner: 'top-left', offset: [24, 24], avatar_px: Number(qp.get('px') ?? 24), layout: 'row', max_shown: 3,
     opacity: Number(qp.get('opacity') ?? 1), bubble: 'both', hide_when_empty: true, style: (qp.get('style') as any) ?? 'pictures', display: 'primary', hide_from_capture: true,

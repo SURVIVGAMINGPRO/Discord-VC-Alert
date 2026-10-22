@@ -78,7 +78,7 @@
   }
 
   // ------------------------------------------------------------ data
-  let importing = $state<{ path?: string; text?: string; migration?: boolean } | null>(null);
+  let importing = $state<{ path?: string; text?: string } | null>(null);
   let pasting = $state(false);
   let exporting = $state(false);
   let backups = $state<{ name: string; when: string }[]>([]);
@@ -87,9 +87,9 @@
     if (tab === 'data') loadBackups();
   });
 
-  async function importFile(migration = false) {
-    const path = await pickFile(migration ? 'Choose your old config.json' : 'Import a list', [{ name: 'JSON', extensions: ['json'] }]);
-    if (path) importing = { path, migration };
+  async function importFile() {
+    const path = await pickFile('Import a list', [{ name: 'JSON', extensions: ['json'] }]);
+    if (path) importing = { path };
   }
 
   let resetDone = $state(false);
@@ -313,9 +313,6 @@
             <SettingRow title="Import a list" sub="A .json from a friend, a backup, or a plain list of usernames.">
               <Button small onclick={() => (pasting = true)}>Paste…</Button>
               <Button small onclick={() => importFile()}>Choose file…</Button>
-            </SettingRow>
-            <SettingRow title="Bring over VC Alert 1" sub="Your old config.json, with its sounds, overlay and Discord approval.">
-              <Button small onclick={() => importFile(true)}>Choose config.json…</Button>
             </SettingRow>
             <SettingRow title="Export" sub="Share your list with friends, or keep a full backup.">
               <Button small kind="primary" onclick={() => (exporting = true)}>Export…</Button>

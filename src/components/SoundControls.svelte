@@ -6,8 +6,9 @@
   import Button from './Button.svelte';
   import SpeakerIcon from './SpeakerIcon.svelte';
   import Waveform from './Waveform.svelte';
+  import BeepProfiles from './BeepProfiles.svelte';
   import { errText, pickFile, call } from '../lib/api';
-  import { BEEP_PRESETS, baseName, lockMs } from '../lib/util';
+  import { BEEP_PRESETS, baseName, lockMs, sameBeep } from '../lib/util';
   import { play, reduced, swapIn } from '../lib/motion';
   import type { Beep } from '../lib/types';
 
@@ -62,11 +63,7 @@
   }
 
   const set = (k: keyof Beep, v: number) => onchange(mode, { ...beep, [k]: v }, file);
-  const isPreset = (p: (typeof BEEP_PRESETS)[number]) =>
-    p.beep.frequency_hz === beep.frequency_hz &&
-    p.beep.duration_ms === beep.duration_ms &&
-    p.beep.repeats === beep.repeats &&
-    p.beep.volume === beep.volume;
+  const isPreset = (p: (typeof BEEP_PRESETS)[number]) => sameBeep(p.beep, beep);
 
   // The page area unfolds to its new height when the mode changes.
   $effect.pre(() => {
@@ -104,6 +101,7 @@
               </button>
             {/each}
           </div>
+          <BeepProfiles {beep} onpick={(b) => onchange('beep', { ...beep, ...b }, file)} />
           <div class="wave"><Waveform {beep} /></div>
           <div class="grid">
             <span class="lbl">Pitch</span>

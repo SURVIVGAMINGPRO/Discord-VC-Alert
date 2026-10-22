@@ -43,22 +43,31 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(cfg!(target_os = "macos"))
         .on_menu_event(|app, event| match event.id.as_ref() {
+            // Menu events run on the main thread; do the work on the async
+            // runtime so the main thread never waits on our locks.
             "toggle" => {
-                let s = state(app);
-                if s.run.lock().unwrap().watching {
-                    s.stop();
-                } else if let Err(e) = s.start() {
-                    crate::commands::show_main(app);
-                    if e == "needs-credentials" {
-                        crate::commands::open_settings_window(app, Some("connection".into()));
-                    } else {
-                        s.toast("error", &e);
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let s = state(&app);
+                    let watching = s.run.lock().unwrap().watching;
+                    if watching {
+                        s.stop();
+                    } else if let Err(e) = s.start() {
+                        crate::commands::show_main(&app);
+                        if e == "needs-credentials" {
+                            crate::commands::open_settings_window(&app, Some("connection".into()));
+                        } else {
+                            s.toast("error", &e);
+                        }
                     }
-                }
+                });
             }
-            "quiet" => crate::commands::toggle_quiet_inner(app),
+            "quiet" => {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move { crate::commands::toggle_quiet_inner(&app) });
+            }
             "show" => crate::commands::show_main(app),
-            "settings" => crate::commands::open_settings_window(app, None),
+            "settings" => open_settings_later(app, None),
             "quit" => crate::commands::quit(app),
             _ => {}
         })
@@ -72,6 +81,13 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
     app.manage(TrayItems { toggle, quiet });
     Ok(())
+}
+
+/// Menu events run on the main thread, and creating a window there deadlocks
+/// on Windows, so the Settings window is opened from the async runtime.
+fn open_settings_later(app: &AppHandle, tab: Option<String>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { crate::commands::open_settings_window(&app, tab) });
 }
 
 pub fn refresh(app: &AppHandle) {

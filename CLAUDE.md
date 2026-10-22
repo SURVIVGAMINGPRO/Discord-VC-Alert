@@ -74,7 +74,7 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (39 at the time of writing)
+cargo test -p vc-core             # engine tests (42 at the time of writing)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
 ```
@@ -92,7 +92,12 @@ override the data folder and the Discord socket.
 Ported from v1 and covered by tests; keep them green.
 - `parse_identifier`: 15+ ASCII digits is an ID; else a 2–32 character
   `[a-z0-9_.]` username (lowercased, leading `@` stripped).
-- Validation and clamps match v1 exactly (Python round-half-even for integers).
+- Validation and clamps match v1 (Python round-half-even for integers). The
+  default beep is v2's **Classic: 1700 Hz, 90 ms, 3 beeps, 75%** (v1 used
+  1000 Hz/180 ms/60%); missing or invalid beep values fall back to it.
+- `beep_profiles`: up to 3 saved beeps (`{name, beep: {frequency_hz,
+  duration_ms, repeats, volume}}`), names cleaned and capped at 12 characters,
+  unique ignoring case. The rhythm (`gap_ratio`) stays universal.
 - The watcher: handshake → token (saved → refresh → AUTHORIZE popup + code
   exchange) → subscribe to channel changes → follow the selected channel →
   presence in join order, alert with per-person cooldown, Quiet suppresses
@@ -111,14 +116,14 @@ Ported from v1 and covered by tests; keep them green.
   everything beside the program instead.
 - `settings.json` is v1's `config.json` shape **minus secrets**, plus
   `"vc_alert": {"version": 2}`, `overlay.style|display|hide_from_capture`,
-  `general.close_to_tray|launch_at_login|hide_dock_icon|setup_complete` and
-  `appearance.theme|density`. v1 ignores the extra keys. A broken file is
+  `general.close_to_tray|launch_at_login|hide_dock_icon|setup_complete`,
+  `appearance.theme|density` and `beep_profiles`. v1 ignores the extra keys. A broken file is
   moved aside (`settings.broken-<time>.json`), never overwritten.
 - Secrets: one keychain item (service "VC Alert", account "discord") holding
   `{client_secret, token}`, so macOS asks at most once. Falls back to
   `secrets.json` (0600) if the keychain can't be used, with a notice in the UI.
 - `backups/`: a copy of settings.json before every import or restore (last 10).
-- `avatars/`: 64 px PNGs + `index.json` (v1 format, importable from v1).
+- `avatars/`: 64 px PNGs + `index.json` (v1's format).
 
 ## 6. Import and export (transfer.rs)
 
@@ -127,15 +132,17 @@ Ported from v1 and covered by tests; keep them green.
   plain JSON array. Paste of plain usernames goes through `add_many` instead.
 - Untrusted input: ≤5 MB, ≤2000 people, labels cleaned (no control chars,
   ≤64 chars), unknown keys ignored, sound *paths* from shared files ignored;
-  only embedded sounds (base64, ≤1 MB, must decode) are accepted. Local paths
-  are followed only for "Bring over VC Alert 1" (migration), which also imports
-  the v1 token next to the config and the picture cache.
+  only embedded sounds (base64, ≤1 MB, must decode) are accepted.
+- VC Alert 1 was never released publicly, so there is no "bring over v1" flow
+  and no v1 export in the UI. The engine still reads v1-shaped files through
+  the normal Import, and still has `migration`/`v1` code paths (unused by the UI).
 - Preview → user picks Merge (default) or Replace, rows, and Mine/Theirs for
-  conflicts; settings and credentials only if ticked (default on only for
-  migration). A backup is written before applying.
-- Export kinds: `watchlist` (for friends), `backup` (credentials only if
-  ticked; file name ends `-private`), `v1`. The `targets` array always keeps
-  v1's exact shape.
+  conflicts; settings and credentials only if ticked (both off by default).
+  Imported beep profiles merge with the user's (theirs fill free slots, names
+  already taken are skipped). A backup is written before applying.
+- Export kinds in the UI: `watchlist` (for friends) and `backup` (credentials
+  only if ticked; file name ends `-private`). The `targets` array keeps v1's
+  shape.
 
 ## 7. Windows and the UI contract
 
@@ -145,6 +152,15 @@ browser, by `?view=`). Rust is the single source of truth: commands change
 state, then a full `state` event (the Snapshot) goes to every window. Other
 events: `alert`, `avatar`, `toast`, `overlay`, `overlay-hover`, `editor`,
 `settings-tab`, `import-file`.
+
+**Threads (the Start/Stop freeze):** from any thread but the main one,
+Tauri's window/monitor/menu calls post to the main thread and wait. So:
+never call into Tauri while holding an app lock (`store`, `ui`, `run`,
+`displays`), and keep the main thread off our locks. Every command is `async`
+(runs on the async runtime), tray menu handlers spawn their work, and windows
+are created from async contexts (creating them from sync commands or event
+handlers deadlocks on Windows). The display list is cached and refreshed in
+`get_state` only.
 
 **Do not touch `crates/vc-core` or `src-tauri` for UI work.** If a UI change
 needs a new command, ask first. Tauri converts command args to camelCase

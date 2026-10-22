@@ -57,6 +57,9 @@ pub struct AppState {
     pub avatars: Arc<AvatarCache>,
     pub run: Mutex<Run>,
     pub ui: Mutex<Ui>,
+    /// The display list for the overlay picker. Refreshed when the UI asks for
+    /// state, not on every change (each read is a main-thread round trip).
+    pub displays: Mutex<Vec<DisplayInfo>>,
 }
 
 #[derive(Clone, Serialize)]
@@ -98,35 +101,22 @@ impl AppState {
     }
 
     pub fn snapshot(&self) -> Snapshot {
+        // Never hold a lock while calling into Tauri: from a background thread,
+        // monitor and window getters wait for the main thread, and if the main
+        // thread is waiting for that same lock, both freeze (the spinning
+        // cursor on Start/Stop). So everything that may touch the main thread
+        // or the keychain happens first, and the locks are only held to copy.
+        let displays = self.displays.lock().unwrap().clone();
+        let has_secret = self.secrets.has_secret();
+        let fallback = self.secrets.fallback_note.lock().unwrap().clone();
         let config = self.cfg();
         // Lock order everywhere: ui, then run.
         let ui = self.ui.lock().unwrap();
         let run = self.run.lock().unwrap();
-        let displays = self
-            .handle
-            .available_monitors()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|m| {
-                let name = m.name().cloned().unwrap_or_default();
-                let size = m.size().to_logical::<f64>(m.scale_factor());
-                let primary = self
-                    .handle
-                    .primary_monitor()
-                    .ok()
-                    .flatten()
-                    .is_some_and(|p| p.name() == m.name() && p.position() == m.position());
-                DisplayInfo {
-                    label: format!("{} ({} × {})", if name.is_empty() { "Display" } else { &name }, size.width.round(), size.height.round()),
-                    name,
-                    primary,
-                }
-            })
-            .collect();
-        let notice = ui.notice.clone().or_else(|| self.secrets.fallback_note.lock().unwrap().clone());
+        let notice = ui.notice.clone().or(fallback);
         Snapshot {
             config,
-            has_secret: self.secrets.has_secret(),
+            has_secret,
             watching: run.watching,
             stopping: run.stopping,
             status: run.status,
@@ -139,6 +129,42 @@ impl AppState {
             displays,
             notice,
             editor_open: ui.editor_open,
+        }
+    }
+
+    /// Re-read the displays (two main-thread round trips). Never call this
+    /// while holding a lock.
+    pub fn refresh_displays(&self) {
+        let list = self.read_displays();
+        *self.displays.lock().unwrap() = list;
+    }
+
+    fn read_displays(&self) -> Vec<DisplayInfo> {
+        let primary = self.handle.primary_monitor().ok().flatten();
+        self.handle
+            .available_monitors()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|m| {
+                let name = m.name().cloned().unwrap_or_default();
+                let size = m.size().to_logical::<f64>(m.scale_factor());
+                let is_primary = primary.as_ref().is_some_and(|p| p.name() == m.name() && p.position() == m.position());
+                DisplayInfo {
+                    label: format!("{} ({} × {})", if name.is_empty() { "Display" } else { &name }, size.width.round(), size.height.round()),
+                    name,
+                    primary: is_primary,
+                }
+            })
+            .collect()
+    }
+
+    /// After a setup problem, a successful connection test or new credentials
+    /// clear it, so the main button goes back to "Start watching".
+    pub fn clear_setup_error(&self) {
+        let mut run = self.run.lock().unwrap();
+        if !run.watching && run.status == Status::SetupError {
+            run.status = Status::Stopped;
+            run.detail.clear();
         }
     }
 

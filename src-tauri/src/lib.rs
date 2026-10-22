@@ -117,6 +117,7 @@ pub fn run() {
                     editor: None,
                 }),
                 data_dir: dir,
+                displays: Mutex::new(Vec::new()),
             });
             app.manage(st.clone());
             let cfg = st.cfg();

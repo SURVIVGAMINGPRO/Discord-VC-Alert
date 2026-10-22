@@ -93,13 +93,22 @@ export function ago(ms: number): string {
 }
 
 export const BEEP_PRESETS: { name: string; beep: Omit<Beep, 'gap_ratio'> }[] = [
-  { name: 'Classic', beep: { frequency_hz: 1000, duration_ms: 180, repeats: 3, volume: 0.6 } },
+  { name: 'Classic', beep: { frequency_hz: 1700, duration_ms: 90, repeats: 3, volume: 0.75 } },
   { name: 'Ping', beep: { frequency_hz: 1700, duration_ms: 70, repeats: 1, volume: 0.8 } },
   { name: 'Double', beep: { frequency_hz: 1200, duration_ms: 90, repeats: 2, volume: 0.7 } },
   { name: 'Chime', beep: { frequency_hz: 1350, duration_ms: 160, repeats: 2, volume: 0.6 } },
   { name: 'Soft', beep: { frequency_hz: 650, duration_ms: 220, repeats: 2, volume: 0.45 } },
   { name: 'Urgent', beep: { frequency_hz: 2000, duration_ms: 60, repeats: 5, volume: 0.9 } },
 ];
+
+/** Same pitch, length, repeats and volume (the rhythm is universal). */
+export function sameBeep(a: Omit<Beep, 'gap_ratio'>, b: Omit<Beep, 'gap_ratio'>): boolean {
+  return a.frequency_hz === b.frequency_hz && a.duration_ms === b.duration_ms && a.repeats === b.repeats && a.volume === b.volume;
+}
+
+/** Saved profiles: the same limits as vc-core's config.rs. */
+export const MAX_PROFILES = 3;
+export const PROFILE_NAME_MAX = 12;
 
 /** v1 Test-button lock: max(duration, 0.4) s + 150 ms. */
 export function lockMs(duration: number): number {

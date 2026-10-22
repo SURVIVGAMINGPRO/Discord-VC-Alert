@@ -1,5 +1,11 @@
 //! Commands the UI calls. Each one changes state through the store (which
 //! saves at once) and then broadcasts a fresh snapshot.
+//!
+//! Every command is async, so it runs on the async runtime and never on the
+//! main thread. The main thread must stay free: from other threads, Tauri's
+//! window and monitor calls wait for it, so if it ever waited on one of our
+//! locks the app would freeze (the old Start/Stop spinner). Async also keeps
+//! keychain reads, which can show a macOS prompt, off the main thread.
 
 use crate::state::{state, Snapshot};
 use serde::Serialize;
@@ -18,12 +24,14 @@ const PORTAL: &str = "https://discord.com/developers/applications";
 // ----------------------------------------------------------------- reads --
 
 #[tauri::command]
-pub fn get_state(app: AppHandle) -> Snapshot {
-    state(&app).snapshot()
+pub async fn get_state(app: AppHandle) -> Snapshot {
+    let s = state(&app);
+    s.refresh_displays();
+    s.snapshot()
 }
 
 #[tauri::command]
-pub fn avatar_data(app: AppHandle, keys: Vec<String>) -> HashMap<String, String> {
+pub async fn avatar_data(app: AppHandle, keys: Vec<String>) -> HashMap<String, String> {
     let s = state(&app);
     keys.into_iter().filter_map(|k| s.avatars.data_url(&k).map(|d| (k, d))).collect()
 }
@@ -31,7 +39,7 @@ pub fn avatar_data(app: AppHandle, keys: Vec<String>) -> HashMap<String, String>
 // --------------------------------------------------------------- the list --
 
 #[tauri::command]
-pub fn add_target(app: AppHandle, label: String, ident: String) -> R<Target> {
+pub async fn add_target(app: AppHandle, label: String, ident: String) -> R<Target> {
     let s = state(&app);
     if ident.trim().is_empty() {
         return Err("Enter a username or user ID.".into());
@@ -49,7 +57,7 @@ pub struct AddMany {
 
 /// A pasted list: usernames/IDs separated by commas, spaces or new lines.
 #[tauri::command]
-pub fn add_many(app: AppHandle, text: String) -> R<AddMany> {
+pub async fn add_many(app: AppHandle, text: String) -> R<AddMany> {
     let s = state(&app);
     let parts: Vec<String> = text
         .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
@@ -68,7 +76,7 @@ pub struct Removed {
 }
 
 #[tauri::command]
-pub fn remove_target(app: AppHandle, key: String) -> R<Option<Removed>> {
+pub async fn remove_target(app: AppHandle, key: String) -> R<Option<Removed>> {
     let s = state(&app);
     let removed = s.store.lock().unwrap().remove(&key)?;
     let out = removed.map(|(t, i)| {
@@ -87,7 +95,7 @@ pub fn remove_target(app: AppHandle, key: String) -> R<Option<Removed>> {
 }
 
 #[tauri::command]
-pub fn undo_remove(app: AppHandle, id: u64) -> R<()> {
+pub async fn undo_remove(app: AppHandle, id: u64) -> R<()> {
     let s = state(&app);
     let entry = {
         let mut ui = s.ui.lock().unwrap();
@@ -102,7 +110,7 @@ pub fn undo_remove(app: AppHandle, id: u64) -> R<()> {
 }
 
 #[tauri::command]
-pub fn rename_target(app: AppHandle, key: String, label: String) -> R<()> {
+pub async fn rename_target(app: AppHandle, key: String, label: String) -> R<()> {
     let s = state(&app);
     s.store.lock().unwrap().rename(&key, &label)?;
     s.changed();
@@ -110,7 +118,7 @@ pub fn rename_target(app: AppHandle, key: String, label: String) -> R<()> {
 }
 
 #[tauri::command]
-pub fn set_person_sound(app: AppHandle, key: String, spec: Option<SoundSpec>) -> R<()> {
+pub async fn set_person_sound(app: AppHandle, key: String, spec: Option<SoundSpec>) -> R<()> {
     let s = state(&app);
     s.store.lock().unwrap().set_sound(&key, spec)?;
     s.changed();
@@ -120,7 +128,7 @@ pub fn set_person_sound(app: AppHandle, key: String, spec: Option<SoundSpec>) ->
 // --------------------------------------------------------------- settings --
 
 #[tauri::command]
-pub fn update_settings(app: AppHandle, patch: Value) -> R<()> {
+pub async fn update_settings(app: AppHandle, patch: Value) -> R<()> {
     let s = state(&app);
     let before = s.cfg();
     s.store.lock().unwrap().patch(&patch)?;
@@ -165,7 +173,7 @@ pub fn apply_capture_protection(app: &AppHandle, on: bool) {
 }
 
 #[tauri::command]
-pub fn toggle_quiet(app: AppHandle) -> bool {
+pub async fn toggle_quiet(app: AppHandle) -> bool {
     toggle_quiet_inner(&app);
     state(&app).cfg().general.quiet
 }
@@ -173,19 +181,20 @@ pub fn toggle_quiet(app: AppHandle) -> bool {
 pub fn toggle_quiet_inner(app: &AppHandle) {
     let s = state(app);
     let quiet = s.cfg().general.quiet;
-    if let Err(e) = s.store.lock().unwrap().patch(&json!({ "general": { "quiet": !quiet } })) {
+    let result = s.store.lock().unwrap().patch(&json!({ "general": { "quiet": !quiet } }));
+    if let Err(e) = result {
         s.toast("error", &e);
     }
     s.changed();
 }
 
 #[tauri::command]
-pub fn complete_setup(app: AppHandle) -> R<()> {
-    update_settings(app, json!({ "general": { "setup_complete": true } }))
+pub async fn complete_setup(app: AppHandle) -> R<()> {
+    update_settings(app, json!({ "general": { "setup_complete": true } })).await
 }
 
 #[tauri::command]
-pub fn dismiss_notice(app: AppHandle) {
+pub async fn dismiss_notice(app: AppHandle) {
     let s = state(&app);
     s.ui.lock().unwrap().notice = None;
     *s.secrets.fallback_note.lock().unwrap() = None;
@@ -195,7 +204,7 @@ pub fn dismiss_notice(app: AppHandle) {
 // ------------------------------------------------------------ connection --
 
 #[tauri::command]
-pub fn save_credentials(app: AppHandle, client_id: String, client_secret: Option<String>) -> R<()> {
+pub async fn save_credentials(app: AppHandle, client_id: String, client_secret: Option<String>) -> R<()> {
     let s = state(&app);
     let id = client_id.trim();
     if !id.is_empty() && !id.chars().all(|c| c.is_ascii_digit()) {
@@ -205,12 +214,13 @@ pub fn save_credentials(app: AppHandle, client_id: String, client_secret: Option
     if let Some(secret) = client_secret.map(|x| x.trim().to_string()).filter(|x| !x.is_empty()) {
         s.secrets.set_client_secret(&secret)?;
     }
+    s.clear_setup_error();
     s.changed();
     Ok(())
 }
 
 #[tauri::command]
-pub fn reveal_secret(app: AppHandle) -> String {
+pub async fn reveal_secret(app: AppHandle) -> String {
     state(&app).secrets.client_secret()
 }
 
@@ -224,14 +234,18 @@ pub async fn test_connection(app: AppHandle) -> R<String> {
     let host: std::sync::Arc<dyn vc_core::discord::Host> = std::sync::Arc::new(crate::state::Bridge(s.clone()));
     let fut = vc_core::discord::test_connection(host, creds, vc_core::discord::http_token_fn(), crate::state::ipc_override());
     match tokio::time::timeout(std::time::Duration::from_secs(120), fut).await {
-        Ok(Ok(name)) => Ok(name),
+        Ok(Ok(name)) => {
+            s.clear_setup_error();
+            s.changed();
+            Ok(name)
+        }
         Ok(Err(e)) => Err(e.to_string()),
         Err(_) => Err("Discord didn't answer in time. If a popup appeared inside Discord, approve it and try again.".into()),
     }
 }
 
 #[tauri::command]
-pub fn reset_login(app: AppHandle) -> R<()> {
+pub async fn reset_login(app: AppHandle) -> R<()> {
     state(&app)
         .secrets
         .set_token(None)
@@ -239,13 +253,13 @@ pub fn reset_login(app: AppHandle) -> R<()> {
 }
 
 #[tauri::command]
-pub fn open_developer_portal(app: AppHandle) -> R<()> {
+pub async fn open_developer_portal(app: AppHandle) -> R<()> {
     use tauri_plugin_opener::OpenerExt;
     app.opener().open_url(PORTAL, None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn reveal_data_folder(app: AppHandle) -> R<()> {
+pub async fn reveal_data_folder(app: AppHandle) -> R<()> {
     use tauri_plugin_opener::OpenerExt;
     let dir = state(&app).data_dir.clone();
     app.opener().open_path(dir.display().to_string(), None::<&str>).map_err(|e| e.to_string())
@@ -254,12 +268,12 @@ pub fn reveal_data_folder(app: AppHandle) -> R<()> {
 // -------------------------------------------------------------- watching --
 
 #[tauri::command]
-pub fn start_watching(app: AppHandle) -> R<()> {
+pub async fn start_watching(app: AppHandle) -> R<()> {
     state(&app).start()
 }
 
 #[tauri::command]
-pub fn stop_watching(app: AppHandle) {
+pub async fn stop_watching(app: AppHandle) {
     state(&app).stop();
 }
 
@@ -268,7 +282,7 @@ pub fn stop_watching(app: AppHandle) {
 /// Play a sound (even in Quiet mode) and return its length in seconds, so the
 /// Test button can lock itself while it plays.
 #[tauri::command]
-pub fn test_sound(app: AppHandle, spec: Option<SoundSpec>) -> R<f64> {
+pub async fn test_sound(app: AppHandle, spec: Option<SoundSpec>) -> R<f64> {
     let s = state(&app);
     let cfg = s.cfg();
     let clip = s.bank.for_spec(&cfg, spec.as_ref())?;
@@ -280,7 +294,7 @@ pub fn test_sound(app: AppHandle, spec: Option<SoundSpec>) -> R<f64> {
 /// Check a chosen sound file and copy it into the app's `sounds/` folder, so
 /// it can't go missing. Returns the path to store.
 #[tauri::command]
-pub fn choose_sound_file(app: AppHandle, path: String) -> R<String> {
+pub async fn choose_sound_file(app: AppHandle, path: String) -> R<String> {
     let s = state(&app);
     let p = PathBuf::from(&path);
     let bytes = vc_core::sound::read_capped(&p)?;
@@ -296,7 +310,7 @@ fn today() -> String {
 }
 
 #[tauri::command]
-pub fn import_preview(app: AppHandle, path: Option<String>, text: Option<String>, migration: bool) -> R<Preview> {
+pub async fn import_preview(app: AppHandle, path: Option<String>, text: Option<String>, migration: bool) -> R<Preview> {
     let s = state(&app);
     let (text, dir) = match (path, text) {
         (Some(p), _) => {
@@ -327,7 +341,7 @@ pub struct ImportResult {
 }
 
 #[tauri::command]
-pub fn import_apply(app: AppHandle, options: ApplyOptions) -> R<ImportResult> {
+pub async fn import_apply(app: AppHandle, options: ApplyOptions) -> R<ImportResult> {
     let s = state(&app);
     let (parsed, migration) = s.ui.lock().unwrap().pending_import.take().ok_or("Nothing to import.")?;
     let cur = s.cfg();
@@ -353,7 +367,7 @@ pub fn import_apply(app: AppHandle, options: ApplyOptions) -> R<ImportResult> {
 }
 
 #[tauri::command]
-pub fn import_cancel(app: AppHandle) {
+pub async fn import_cancel(app: AppHandle) {
     state(&app).ui.lock().unwrap().pending_import = None;
 }
 
@@ -367,20 +381,20 @@ fn backup_now(s: &crate::state::AppState) -> R<()> {
 }
 
 #[tauri::command]
-pub fn export_text(app: AppHandle, options: ExportOptions) -> R<String> {
+pub async fn export_text(app: AppHandle, options: ExportOptions) -> R<String> {
     let s = state(&app);
     let secret = options.include_credentials.then(|| s.secrets.client_secret());
     transfer::export(&s.cfg(), &options, secret.as_deref(), &s.data_dir, &today(), vc_core::APP_VERSION)
 }
 
 #[tauri::command]
-pub fn export_filename(options: ExportOptions) -> String {
+pub async fn export_filename(options: ExportOptions) -> String {
     transfer::default_filename(&options, &today())
 }
 
 #[tauri::command]
-pub fn export_file(app: AppHandle, options: ExportOptions, path: String) -> R<()> {
-    let text = export_text(app, options)?;
+pub async fn export_file(app: AppHandle, options: ExportOptions, path: String) -> R<()> {
+    let text = export_text(app, options).await?;
     vc_core::store::write_atomic(Path::new(&path), text.as_bytes())
 }
 
@@ -391,7 +405,7 @@ pub struct BackupInfo {
 }
 
 #[tauri::command]
-pub fn list_backups(app: AppHandle) -> Vec<BackupInfo> {
+pub async fn list_backups(app: AppHandle) -> Vec<BackupInfo> {
     let dir = state(&app).data_dir.join("backups");
     let mut out: Vec<BackupInfo> = std::fs::read_dir(dir)
         .map(|rd| {
@@ -415,7 +429,7 @@ pub fn list_backups(app: AppHandle) -> Vec<BackupInfo> {
 }
 
 #[tauri::command]
-pub fn restore_backup(app: AppHandle, name: String) -> R<()> {
+pub async fn restore_backup(app: AppHandle, name: String) -> R<()> {
     let s = state(&app);
     if name.contains('/') || name.contains('\\') || !name.starts_with("settings-") || !name.ends_with(".json") {
         return Err("That isn't a backup.".into());
@@ -429,7 +443,7 @@ pub fn restore_backup(app: AppHandle, name: String) -> R<()> {
 }
 
 #[tauri::command]
-pub fn clear_pictures(app: AppHandle) -> usize {
+pub async fn clear_pictures(app: AppHandle) -> usize {
     let s = state(&app);
     let n = s.avatars.clear();
     s.changed();
@@ -474,50 +488,52 @@ pub fn open_settings_window(app: &AppHandle, tab: Option<String>) {
     }
 }
 
+/// Async so the window is created off the main thread: creating windows from
+/// a synchronous command deadlocks on Windows (WebView2).
 #[tauri::command]
-pub fn open_settings(app: AppHandle, tab: Option<String>) {
+pub async fn open_settings(app: AppHandle, tab: Option<String>) {
     open_settings_window(&app, tab);
 }
 
 #[tauri::command]
-pub fn set_overlay_preview(app: AppHandle, on: bool) {
+pub async fn set_overlay_preview(app: AppHandle, on: bool) {
     let s = state(&app);
     s.ui.lock().unwrap().overlay_preview = on;
     crate::overlay::sync(&app);
 }
 
 #[tauri::command]
-pub fn overlay_refresh(app: AppHandle) {
+pub async fn overlay_refresh(app: AppHandle) {
     crate::overlay::sync(&app);
 }
 
 #[tauri::command]
-pub fn open_position_editor(app: AppHandle) -> R<()> {
+pub async fn open_position_editor(app: AppHandle) -> R<()> {
     crate::editor::open(&app)
 }
 
 #[tauri::command]
-pub fn editor_refresh(app: AppHandle) {
+pub async fn editor_refresh(app: AppHandle) {
     crate::editor::emit_model(&app);
 }
 
 #[tauri::command]
-pub fn editor_update(app: AppHandle, px: i64, layout: String) {
+pub async fn editor_update(app: AppHandle, px: i64, layout: String) {
     crate::editor::update(&app, px, &layout);
 }
 
 #[tauri::command]
-pub fn editor_snap(app: AppHandle, corner: String) {
+pub async fn editor_snap(app: AppHandle, corner: String) {
     crate::editor::snap(&app, &corner);
 }
 
 #[tauri::command]
-pub fn editor_save(app: AppHandle) -> R<()> {
+pub async fn editor_save(app: AppHandle) -> R<()> {
     crate::editor::save(&app)
 }
 
 #[tauri::command]
-pub fn editor_cancel(app: AppHandle) {
+pub async fn editor_cancel(app: AppHandle) {
     crate::editor::close(&app);
 }
 
@@ -528,6 +544,6 @@ pub fn quit(app: &AppHandle) {
 }
 
 #[tauri::command]
-pub fn quit_app(app: AppHandle) {
+pub async fn quit_app(app: AppHandle) {
     quit(&app);
 }

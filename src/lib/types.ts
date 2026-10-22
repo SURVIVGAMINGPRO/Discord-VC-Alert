@@ -18,6 +18,12 @@ export interface Beep {
 
 export type PartialBeep = Partial<Beep>;
 
+/** A saved beep (the rhythm, gap_ratio, stays universal). */
+export interface BeepProfile {
+  name: string;
+  beep: { frequency_hz: number; duration_ms: number; repeats: number; volume: number };
+}
+
 export interface SoundSpec {
   file?: string;
   beep?: PartialBeep;
@@ -70,6 +76,7 @@ export interface Config {
   cooldown_seconds: number;
   sound_file: string;
   beep: Beep;
+  beep_profiles: BeepProfile[];
   overlay: OverlaySettings;
   general: General;
   appearance: Appearance;
@@ -142,7 +149,7 @@ export interface Preview {
 }
 
 export interface ExportOptions {
-  kind: 'watchlist' | 'backup' | 'v1';
+  kind: 'watchlist' | 'backup';
   keys: string[] | null;
   embed_sounds: boolean;
   include_credentials: boolean;

@@ -307,7 +307,7 @@
 
   // -------------------------------------------------------------- sheets --
   let sheet = $state<'add' | 'paste' | null>(null);
-  let importing = $state<{ path?: string; text?: string; migration?: boolean } | null>(null);
+  let importing = $state<{ path?: string; text?: string } | null>(null);
   let dropping = $state(false);
 
   function addMenu(e: MouseEvent) {
@@ -500,7 +500,7 @@
     {/if}
 
     {#each items as it (it.id)}
-      <div class="item" class:is-head={it.kind === 'head'} animate:glide={flipParams(filtering)} in:rise={{ skip: filtering }} out:shrink={{ skip: filtering }}>
+      <div class="item" class:is-head={it.kind === 'head'} class:is-row={it.kind === 'row'} animate:glide={flipParams(filtering)} in:rise={{ skip: filtering }} out:shrink={{ skip: filtering }}>
         {#if it.kind === 'head'}
           <div class="sec" class:live={it.live} role="presentation">{it.text} <span class="count"><RollingNumber value={it.count} /></span></div>
         {:else}
@@ -591,7 +591,7 @@
   <PersonSound t={soundFor} onclose={() => (soundFor = null)} />
 {/if}
 {#if !cfg.general.setup_complete && !importing}
-  <Wizard onimport={(src) => (importing = src)} />
+  <Wizard />
 {/if}
 {#if importing}
   <ImportSheet source={importing} onclose={() => (importing = null)} />
@@ -757,6 +757,25 @@
   .item.is-head {
     z-index: 0;
     background: none;
+  }
+  /* A grey hairline between people (never under a heading), lined up with the
+     names. It fades beside a hovered or focused row, whose highlight takes over. */
+  .item.is-row + .item.is-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: calc(var(--sp-2) + var(--avatar) + var(--sp-3));
+    right: var(--sp-2);
+    height: 1px;
+    background: var(--line);
+    pointer-events: none;
+    transition: opacity var(--t-fade) var(--ease-color);
+  }
+  .item.is-row:hover::before,
+  .item.is-row:focus-within::before,
+  .item.is-row:hover + .item.is-row::before,
+  .item.is-row:focus-within + .item.is-row::before {
+    opacity: 0;
   }
   .sec {
     display: flex;

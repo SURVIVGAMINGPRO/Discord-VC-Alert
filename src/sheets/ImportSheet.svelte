@@ -11,7 +11,7 @@
   import { baseName } from '../lib/util';
   import type { Preview } from '../lib/types';
 
-  let { source, onclose }: { source: { path?: string; text?: string; migration?: boolean }; onclose: () => void } = $props();
+  let { source, onclose }: { source: { path?: string; text?: string }; onclose: () => void } = $props();
 
   let preview = $state<Preview | null>(null);
   let error = $state('');
@@ -24,12 +24,10 @@
   let busy = $state(false);
 
   $effect(() => {
-    call<Preview>('import_preview', { path: source.path ?? null, text: source.text ?? null, migration: !!source.migration })
+    call<Preview>('import_preview', { path: source.path ?? null, text: source.text ?? null, migration: false })
       .then((p) => {
         preview = p;
         for (const r of p.rows) selected[r.key] = r.status !== 'same';
-        importSettings = !!source.migration && p.has_settings;
-        importCreds = !!source.migration && p.has_credentials;
       })
       .catch((e) => (error = errText(e)));
   });
@@ -143,15 +141,10 @@
       <div class="opt">
         <div>
           <div>Discord app details</div>
-          <div class="sub">Saved in your system keychain.{source.migration ? '' : ' Only import these from your own files.'}</div>
+          <div class="sub">Saved in your system keychain. Only import these from your own files.</div>
         </div>
         <Switch label="Also import Discord app details" checked={importCreds} onchange={(v) => (importCreds = v)} />
       </div>
-    {/if}
-    {#if source.migration && (preview.has_token || preview.has_avatars)}
-      <p class="note">
-        {preview.has_token ? 'Your saved Discord approval comes along, so Discord won’t ask again. ' : ''}{preview.has_avatars ? 'Saved profile pictures come along too.' : ''}
-      </p>
     {/if}
     {#if preview.missing_sounds.length}
       <p class="note">

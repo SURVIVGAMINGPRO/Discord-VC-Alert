@@ -170,7 +170,7 @@ pub fn parse(text: &str, opts: &ParseOptions) -> Result<Parsed, String> {
                     patch.insert(k.into(), Value::Object(sec.clone()));
                 }
             }
-            for k in ["alert_if_already_present", "cooldown_seconds"] {
+            for k in ["alert_if_already_present", "cooldown_seconds", "beep_profiles"] {
                 if let Some(val) = m.get(k) {
                     patch.insert(k.into(), val.clone());
                 }
@@ -455,6 +455,16 @@ pub fn apply(p: &Parsed, cur: &Config, o: &ApplyOptions, data_dir: &Path) -> Res
             if let Some(Value::String(f)) = patch.get("sound_file").cloned() {
                 patch["sound_file"] = json!(store_sound_file(p, &f, data_dir)?);
             }
+            // Beep profiles merge instead of replacing: yours stay first, the
+            // file's fill the free slots (same name = yours wins, max 3).
+            if let Some(Value::Array(theirs)) = patch.get("beep_profiles").cloned() {
+                let mut merged = match json!(cfg.beep_profiles) {
+                    Value::Array(a) => a,
+                    _ => Vec::new(),
+                };
+                merged.extend(theirs);
+                patch["beep_profiles"] = Value::Array(merged);
+            }
             cfg = cfg.patched(&patch)?;
         }
     }
@@ -727,6 +737,27 @@ mod tests {
         let a = apply(&p, &cur, &o2, dir.path()).unwrap();
         assert_eq!(a.cfg.targets[0].label, "Alpha!");
         assert_eq!(a.credentials.unwrap().client_secret, "s");
+    }
+
+    #[test]
+    fn imported_profiles_merge_with_yours() {
+        let mut cur = Config::default();
+        cur.beep_profiles = crate::config::clean_profiles(Some(&json!([
+            {"name": "Mine", "beep": {"frequency_hz": 500}},
+            {"name": "Shared", "beep": {"frequency_hz": 600}}
+        ])));
+        let text = r#"{"vc_alert": {"version": 2}, "targets": [], "beep_profiles": [
+            {"name": "shared", "beep": {"frequency_hz": 900}},
+            {"name": "Theirs", "beep": {"frequency_hz": 1200}},
+            {"name": "Extra", "beep": {}}
+        ]}"#;
+        let p = parse(text, &ParseOptions::default()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let o = ApplyOptions { mode: "merge".into(), selected: vec![], theirs: vec![], import_settings: true, import_credentials: false };
+        let a = apply(&p, &cur, &o, dir.path()).unwrap();
+        let names: Vec<&str> = a.cfg.beep_profiles.iter().map(|x| x.name.as_str()).collect();
+        assert_eq!(names, ["Mine", "Shared", "Theirs"]);
+        assert_eq!(a.cfg.beep_profiles[1].beep.frequency_hz, 600, "yours wins on a name clash");
     }
 
     #[test]

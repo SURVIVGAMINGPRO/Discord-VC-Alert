@@ -294,9 +294,14 @@ pub fn describe_beep(b: &Beep) -> String {
 mod tests {
     use super::*;
 
+    // VC Alert 1's default beep, to check the formula against v1's numbers.
+    fn v1_beep() -> Beep {
+        Beep { frequency_hz: 1000, duration_ms: 180, repeats: 3, gap_ratio: 0.5, volume: 0.6 }
+    }
+
     #[test]
     fn tone_length_matches_v1() {
-        let b = Beep::default(); // 180 ms × 3, ratio 0.5 → 0.72 s
+        let b = v1_beep(); // 180 ms × 3, ratio 0.5 → 0.72 s
         let s = beep_samples(&b);
         assert_eq!(s.len(), 3 * 7938 + 2 * 3969);
         assert!((s.len() as f64 / RATE as f64 - 0.72).abs() < 0.001);
@@ -307,7 +312,7 @@ mod tests {
 
     #[test]
     fn wav_decodes() {
-        let bytes = wav_bytes(&beep_samples(&Beep::default()));
+        let bytes = wav_bytes(&beep_samples(&v1_beep()));
         let d = probe(&bytes).unwrap();
         assert!((d - 0.72).abs() < 0.001);
         assert!(probe(b"not audio at all").is_err());
@@ -321,7 +326,7 @@ mod tests {
         let (file, b) = merged_sound(&cfg, Some(&spec));
         assert_eq!(file, "");
         assert_eq!(b.repeats, 2);
-        assert_eq!(b.frequency_hz, 1000);
+        assert_eq!(b.frequency_hz, 1700);
     }
 
     #[test]
@@ -337,6 +342,7 @@ mod tests {
         });
         assert!(bank.for_spec(&cfg, cfg.targets[0].sound.as_ref()).is_err());
         let c = bank.clip_for(&cfg, "xx").unwrap();
-        assert!((c.duration - 0.72).abs() < 0.001);
+        let expected = beep_samples(&Beep::default()).len() as f64 / RATE as f64;
+        assert!((c.duration - expected).abs() < 0.001, "falls back to the universal beep");
     }
 }

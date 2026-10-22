@@ -35,11 +35,6 @@ minutes, once.
    then **Test connection**. The first time, Discord shows a popup inside the
    Discord app: approve it. VC Alert remembers the approval.
 
-Coming from VC Alert 1? Choose **Import from VC Alert 1…** on the first screen
-(or **Settings → Import and export → Bring over VC Alert 1**) and pick your old
-`config.json`. Your list, sounds, overlay settings and Discord approval come
-over; your old files aren't changed.
-
 ## Using it
 
 - **Add someone:** type their **unique username** (not their display name) in
@@ -47,6 +42,9 @@ over; your old files aren't changed.
   several names separated by commas or spaces to add them all at once.
 - **Start watching**, then join a voice channel. People from your list who are
   in your channel move to the top, and the overlay shows them.
+- **Sounds:** the default is *Classic* (1700 Hz, 90 ms, 3 beeps, 75%). Tune a
+  beep and choose **Save as profile** to keep up to 3 of your own, with names
+  of up to 12 characters.
 - **Own sound:** the speaker button on a person gives them their own beep or
   sound file. Right-click a person (or press Enter on them) for Rename,
   Sound…, Copy username and Remove. Delete removes the selected person, with Undo.
@@ -62,11 +60,9 @@ over; your old files aren't changed.
 
 **Settings → Import and export → Export…**
 - **List for friends:** names, usernames and per-person beeps (custom sound
-  files can be included). Never your Discord app details or settings. VC Alert 1
-  can read it too.
+  files can be included). Never your Discord app details or settings.
 - **Full backup:** everything, for yourself. Discord app details are included
   only if you tick the box, and the file name then ends in `-private`.
-- **VC Alert 1:** a `config.json` for friends still on the old version.
 
 To import, drag a `.json` onto the window, use the add menu next to the search
 box, or **Settings → Import and export**. You see exactly what's in the file

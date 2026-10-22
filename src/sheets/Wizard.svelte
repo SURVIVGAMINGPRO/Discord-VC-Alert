@@ -5,10 +5,9 @@
   import Button from '../components/Button.svelte';
   import CredentialsForm from '../components/CredentialsForm.svelte';
   import { app } from '../lib/app.svelte';
-  import { call, pickFile } from '../lib/api';
+  import { call } from '../lib/api';
   import { step as slide } from '../lib/motion';
 
-  let { onimport }: { onimport: (src: { path: string; migration: boolean }) => void } = $props();
   const snap = $derived(app.snap!);
 
   const STEPS = ['welcome', 'details', 'people'] as const;
@@ -19,11 +18,6 @@
     i = to;
   };
   const finish = () => call('complete_setup');
-
-  async function importOld() {
-    const path = await pickFile('Choose your old config.json', [{ name: 'VC Alert config', extensions: ['json'] }]);
-    if (path) onimport({ path, migration: true });
-  }
 
   const ready = $derived(!!snap.config.client_id && snap.has_secret);
 </script>
@@ -42,9 +36,7 @@
           <p class="muted">It talks only to the Discord app on this computer. Nothing is posted anywhere and nobody else can see it.</p>
           <div class="choices">
             <Button kind="primary" onclick={() => go(1)}>Set up</Button>
-            <Button onclick={importOld}>Import from VC Alert 1…</Button>
           </div>
-          <p class="muted small">Coming from VC Alert 1? Pick your old config.json and everything comes over: your list, sounds, overlay and Discord approval.</p>
         {:else if STEPS[i] === 'details'}
           <p class="muted">VC Alert needs a Discord application of your own. It takes about two minutes and nobody else sees it.</p>
           <CredentialsForm compact />
@@ -85,10 +77,6 @@
   }
   .muted {
     color: var(--text-2);
-  }
-  .small {
-    color: var(--text-3);
-    font-size: var(--fs-sm);
   }
   .choices {
     display: flex;

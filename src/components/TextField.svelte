@@ -11,6 +11,7 @@
     mono = false,
     autofocus = false,
     invalid = false,
+    maxlength,
     describedby,
     onenter,
     onescape,
@@ -27,6 +28,7 @@
     mono?: boolean;
     autofocus?: boolean;
     invalid?: boolean;
+    maxlength?: number;
     describedby?: string;
     onenter?: () => void;
     onescape?: () => void;
@@ -49,6 +51,7 @@
     {autofocus}
     aria-label={label}
     aria-invalid={invalid}
+    {maxlength}
     aria-describedby={describedby}
     spellcheck="false"
     autocomplete="off"
