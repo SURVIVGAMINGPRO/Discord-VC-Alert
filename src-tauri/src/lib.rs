@@ -48,6 +48,16 @@ fn open_store(dir: &std::path::Path) -> (vc_core::store::Store, Option<String>) 
     }
 }
 
+/// Passed by the login item, so "Start minimized" applies only to automatic
+/// launches. Opening VC Alert yourself always shows the window: with the Dock
+/// icon hidden and the window tucked into the menu bar, a hidden manual launch
+/// looks exactly like a crash.
+const AUTOSTART_ARG: &str = "--autostart";
+
+fn launched_at_login(args: &[String]) -> bool {
+    args.iter().any(|a| a == AUTOSTART_ARG)
+}
+
 /// A `.json` passed on the command line ("Open with" on Windows).
 fn json_arg(args: &[String]) -> Option<String> {
     args.iter().skip(1).find(|a| a.to_lowercase().ends_with(".json")).cloned()
@@ -62,7 +72,9 @@ fn import_file(app: &tauri::AppHandle, path: String) {
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            if let Some(p) = json_arg(&args) {
+            if launched_at_login(&args) {
+                // The login item ran while VC Alert was already open: stay put.
+            } else if let Some(p) = json_arg(&args) {
                 import_file(app, p);
             } else {
                 commands::show_main(app);
@@ -70,7 +82,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![AUTOSTART_ARG])))
         .setup(|app| {
             let handle = app.handle().clone();
             let dir = data_dir(&handle);
@@ -135,7 +147,8 @@ pub fn run() {
                 .visible(false)
                 .center()
                 .build()?;
-            if cfg.general.start_minimized {
+            let args: Vec<String> = std::env::args().collect();
+            if cfg.general.start_minimized && launched_at_login(&args) {
                 let _ = main.minimize();
                 let _ = main.show();
                 if cfg.general.close_to_tray {
@@ -143,13 +156,26 @@ pub fn run() {
                 }
             } else {
                 let _ = main.show();
+                let _ = main.set_focus();
+            }
+
+            // Login items registered before the flag existed start without it;
+            // re-registering rewrites them with it (a small file write).
+            if cfg.general.launch_at_login {
+                let h = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    use tauri_plugin_autostart::ManagerExt;
+                    if let Err(e) = h.autolaunch().enable() {
+                        eprintln!("could not refresh the login item: {e}");
+                    }
+                });
             }
 
             tray::create(&handle)?;
             overlay::create(&handle)?;
             tray::refresh(&handle);
 
-            if let Some(p) = json_arg(&std::env::args().collect::<Vec<_>>()) {
+            if let Some(p) = json_arg(&args) {
                 let h = handle.clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(std::time::Duration::from_millis(900)).await;

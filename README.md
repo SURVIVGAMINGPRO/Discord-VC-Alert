@@ -8,11 +8,11 @@ token, nothing posted anywhere, and nobody else can see it.
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.0_universal.dmg` and drag VC Alert to
+- **macOS:** open `VC Alert_2.0.2_universal.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.0_x64-setup.exe` (no admin needed), or use the
+- **Windows:** run `VC Alert_2.0.2_x64-setup.exe` (no admin needed), or use the
   portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
@@ -54,6 +54,8 @@ minutes, once.
   dots), size, and layout. **Position…** lets you drag it anywhere. It never
   takes focus, clicks go straight through it, and it can be hidden from screen
   sharing.
+- **Open at login** with **Start in the background** keeps VC Alert in the
+  menu bar when you log in. Opening it yourself always shows the window.
 - Use headphones: speakers can leak the beep into your microphone.
 
 ## Sharing lists with friends

@@ -29,6 +29,13 @@ v1's spec still describes the intended behaviour.
 8. **Be honest** about what has and hasn't been run on real Discord, macOS and
    Windows (section 12).
 
+## 1b. Versioning
+
+Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
+the "first launch looks like a crash" fix, and so on (2.0.x). Change it in
+`Cargo.toml` (`[workspace.package]`), `package.json` and
+`src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
+
 ## 2. Layout
 
 ```
@@ -123,6 +130,11 @@ Ported from v1 and covered by tests; keep them green.
   `{client_secret, token}`, so macOS asks at most once. Falls back to
   `secrets.json` (0600) if the keychain can't be used, with a notice in the UI.
 - `backups/`: a copy of settings.json before every import or restore (last 10).
+- `general.start_minimized` ("Start in the background") applies only when the
+  login item opens VC Alert: it passes `--autostart`, and the app re-registers
+  the login item at startup so older ones get the flag. A manual launch always
+  shows and focuses the window. (Hidden + no Dock icon on a manual launch
+  looked like a crash on first open.)
 - `avatars/`: 64 px PNGs + `index.json` (v1's format).
 
 ## 6. Import and export (transfer.rs)

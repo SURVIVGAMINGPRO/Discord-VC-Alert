@@ -253,8 +253,18 @@
             <SettingRow title="Open at login">
               <Switch label="Open at login" checked={cfg.general.launch_at_login} onchange={(v) => set('general', { launch_at_login: v })} />
             </SettingRow>
-            <SettingRow title="Start minimized" sub="Opens {mac ? 'in the menu bar' : 'in the notification area'} instead of in front of you.">
-              <Switch label="Start minimized" checked={cfg.general.start_minimized} onchange={(v) => set('general', { start_minimized: v })} />
+            <SettingRow
+              title="Start in the background"
+              sub={cfg.general.launch_at_login
+                ? `When VC Alert opens at login, it waits ${mac ? 'in the menu bar' : 'in the notification area'} instead of opening its window. Opening it yourself always shows the window.`
+                : 'Only applies when VC Alert opens at login. Turn on Open at login to use it.'}
+            >
+              <Switch
+                label="Start in the background"
+                checked={cfg.general.start_minimized}
+                disabled={!cfg.general.launch_at_login}
+                onchange={(v) => set('general', { start_minimized: v })}
+              />
             </SettingRow>
             <SettingRow title="Keep running when the window is closed" sub="VC Alert stays {mac ? 'in the menu bar' : 'in the notification area'} and keeps watching.">
               <Switch label="Keep running when the window is closed" checked={cfg.general.close_to_tray} onchange={(v) => set('general', { close_to_tray: v })} />
