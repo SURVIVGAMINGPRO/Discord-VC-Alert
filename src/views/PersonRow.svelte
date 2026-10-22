@@ -186,10 +186,20 @@
     padding: var(--row-y) var(--sp-3) var(--row-y) calc((var(--row-h) - var(--avatar)) / 2);
     border-radius: var(--r-md);
     background: var(--surface);
-    box-shadow: inset 0 0 0 1px var(--line);
+    box-shadow:
+      inset 0 0 0 1px var(--line),
+      inset 0 0 0 0 transparent;
     outline: none;
     --dot-ring: var(--surface);
-    transition: background-color var(--t-fade) var(--ease-color);
+    transition:
+      background-color var(--t-fade) var(--ease-color),
+      box-shadow var(--t-inset) var(--ease-inset);
+  }
+  /* Hover sinks the card a little: a soft shadow grows in from its edges. */
+  .row:hover {
+    box-shadow:
+      inset 0 0 0 1px var(--line),
+      inset 0 0 14px 0 var(--card-inset);
   }
   .row:hover,
   .row:focus-within {
@@ -198,6 +208,8 @@
   }
   .row:focus-visible {
     box-shadow: inset 0 0 0 2px var(--focus);
+    /* Focus rings appear at once, never through the hover shadow's fade. */
+    transition: background-color var(--t-fade) var(--ease-color);
   }
   /* The one big moment in the window: a soft green wash that fades out. */
   .row::after {

@@ -4,6 +4,7 @@
   import IconButton from '../components/IconButton.svelte';
   import Icon from '../components/Icon.svelte';
   import Lamp from '../components/Lamp.svelte';
+  import Logo from '../components/Logo.svelte';
   import Menu, { type MenuItem } from '../components/Menu.svelte';
   import RollingNumber from '../components/RollingNumber.svelte';
   import SpeakerIcon from '../components/SpeakerIcon.svelte';
@@ -17,7 +18,7 @@
   import Wizard from '../sheets/Wizard.svelte';
   import { app, avatars, loadAvatars, toast, watchAvatars } from '../lib/app.svelte';
   import { call, errText, on, onFileDrop, pickFile } from '../lib/api';
-  import { flipParams, glide, rise, shake, shrink, swapIn, unfold, fold } from '../lib/motion';
+  import { flipParams, glide, ms, rise, shake, shrink, swapIn, unfold, fold } from '../lib/motion';
   import { ago, customTag, describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
   import type { Target } from '../lib/types';
 
@@ -43,6 +44,16 @@
       toast('error', errText(e));
     }
   }
+
+  // ------------------------------------------------------------ launch --
+  // The logo shows for a beat when VC Alert opens, then zooms towards you and
+  // fades (Animista slide-out-fwd-center). A timer removes it, so it never
+  // lingers, even if the window opened hidden and no animation ran.
+  let splash = $state(true);
+  onMount(() => {
+    const t = setTimeout(() => (splash = false), ms('--t-launch-hold') + ms('--t-launch') + 100);
+    return () => clearTimeout(t);
+  });
 
   // ------------------------------------------------------------ status --
   let starting = $state(false);
@@ -610,6 +621,7 @@
 
     {#if !n}
       <div class="empty" in:rise>
+        <Logo size={56} class="empty-logo" />
         <p class="empty-head">Add the first person to watch</p>
         <p class="empty-sub">Type their Discord username above and press Enter, or import a list from the add menu.</p>
       </div>
@@ -642,6 +654,12 @@
   </footer>
 
   <div class="sr-only" role="status" aria-live="polite">{announce}</div>
+
+  {#if splash}
+    <div class="splash" aria-hidden="true">
+      <Logo size={96} class="splash-logo" />
+    </div>
+  {/if}
 
   {#if dropping}
     <div class="drop" in:swapIn out:fold>
@@ -947,6 +965,46 @@
   .empty {
     padding: var(--sp-8) var(--sp-4);
     text-align: center;
+  }
+  .empty :global(.empty-logo) {
+    margin: 0 auto var(--sp-3);
+  }
+
+  /* ---------------------------------------------------------- launch */
+  .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    perspective: var(--launch-perspective);
+    pointer-events: none;
+    animation: splash-fade var(--t-launch) var(--ease-launch) var(--t-launch-hold) both;
+  }
+  .splash :global(.splash-logo) {
+    animation: slide-out-fwd-center var(--t-launch) var(--ease-launch) var(--t-launch-hold) both;
+  }
+  @keyframes slide-out-fwd-center {
+    from {
+      transform: translateZ(1px);
+      opacity: 1;
+    }
+    to {
+      transform: translateZ(var(--launch-depth));
+      opacity: 0;
+    }
+  }
+  @keyframes splash-fade {
+    to {
+      opacity: 0;
+    }
+  }
+  /* Reduced motion: the logo only fades. */
+  @media (prefers-reduced-motion: reduce) {
+    .splash :global(.splash-logo) {
+      animation-name: splash-fade;
+    }
   }
   .empty-head {
     margin: 0;

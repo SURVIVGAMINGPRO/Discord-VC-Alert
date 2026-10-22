@@ -1,3 +1,11 @@
+<p align="center">
+  <a href="https://github.com/SURVIVGAMINGPRO/Discord-VC-Alert/releases/latest/download/VC-Alert-macOS.dmg"><b>Download for macOS</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/SURVIVGAMINGPRO/Discord-VC-Alert/releases/latest/download/VC-Alert-Windows-setup.exe"><b>Download for Windows</b></a>
+</p>
+
+<p align="center"><img src="assets/appicon.svg" width="72" height="72" alt=""></p>
+
 # VC Alert
 
 A quiet beep, and a tiny picture in the corner of your screen, when people you
@@ -10,12 +18,15 @@ What's new in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.9_universal.dmg` and drag VC Alert to
+Both buttons at the top always download the newest version. Every version is
+also on the [Releases page](https://github.com/SURVIVGAMINGPRO/Discord-VC-Alert/releases).
+
+- **macOS:** open `VC-Alert-macOS.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.9_x64-setup.exe` (no admin needed), or use the
-  portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
+- **Windows:** run `VC-Alert-Windows-setup.exe` (no admin needed), or use the
+  portable [`VC-Alert-Windows-portable.exe`](https://github.com/SURVIVGAMINGPRO/Discord-VC-Alert/releases/latest/download/VC-Alert-Windows-portable.exe). Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
 

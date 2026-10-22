@@ -7,6 +7,19 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.1.0 (2026-10-22)
+
+### Added
+- Downloads: the top of the README has **Download for macOS** and **Download
+  for Windows**, which always fetch the newest version from the Releases page.
+- The VC Alert logo: it greets you when the app opens, then zooms towards you
+  and fades away. It also sits in **Settings → About** and above "Add the
+  first person to watch".
+
+### Changed
+- Hovering someone in the watch list sinks their card slightly: a soft
+  shadow grows in from its edges.
+
 ## 2.0.9 (2026-10-22)
 
 ### Changed

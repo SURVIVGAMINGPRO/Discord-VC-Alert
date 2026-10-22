@@ -76,6 +76,8 @@
   --ease-soft: cubic-bezier(0.215, 0.61, 0.355, 1); /* menus, sheets, unfolding, dimming */
   --ease-away: cubic-bezier(0.33, 0.17, 0.67, 0.5); /* dismissing a sheet or toast */
   --ease-color: cubic-bezier(0.25, 0.1, 0.25, 1); /* colour and highlight changes */
+  --ease-inset: cubic-bezier(0.25, 0.46, 0.45, 0.94); /* a card's inner shadow */
+  --ease-launch: cubic-bezier(0.47, 0, 0.745, 0.715); /* the launch logo leaving (an exit) */
 
   --t-swap: 150ms;
   --t-fade: 200ms;
@@ -88,6 +90,9 @@
   --t-pulse: 1100ms; /* Test button sound waves, one cycle */
   --t-ping: 1400ms; /* the one big moment: someone joined */
   --t-flash: 1500ms; /* static join ring under reduced motion */
+  --t-inset: 400ms; /* a card's inner shadow on hover (Animista shadow-inset-center) */
+  --t-launch: 400ms; /* the launch logo zooming out (Animista slide-out-fwd-center) */
+  --t-launch-hold: 350ms; /* how long the launch logo shows first */
 
   --press-scale: 0.97;
   --row-press-scale: 0.985;
@@ -100,6 +105,8 @@
   --dialog-from: 0.8;
   --blur-icon: 2px;
   --blur-surface: 4px;
+  --launch-depth: 600px; /* how far the launch logo travels towards you */
+  --launch-perspective: 1000px; /* so that travel reads as a zoom (2.5x) */
   --shake: 3px;
 
   /* ------------------------------------------------------------- density */
@@ -167,6 +174,7 @@
   --focus: #8c95ff;
   --scrim: rgba(6, 7, 12, 0.62);
   --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --card-inset: rgba(0, 0, 0, 0.5); /* hovered card: shadow-inset-center */
   --shadow-sheet: 0 24px 60px rgba(0, 0, 0, 0.55);
 }
 
@@ -223,6 +231,7 @@
   --focus: #4c58e0;
   --scrim: rgba(22, 25, 39, 0.32);
   --shadow-pop: 0 8px 24px rgba(22, 25, 39, 0.14), 0 0 0 1px rgba(22, 25, 39, 0.06);
+  --card-inset: rgba(22, 25, 39, 0.16);
   --shadow-sheet: 0 24px 60px rgba(22, 25, 39, 0.22);
 }
 

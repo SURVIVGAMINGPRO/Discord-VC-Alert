@@ -36,12 +36,14 @@ the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
 profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
 scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
 and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
-options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, and so on
-(2.0.x). Change it in
+options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, 2.1.0
+the logo, its launch zoom, the card hover shadow and GitHub Releases; fixes
+from here are 2.1.x. Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
-`src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`
-and the README's download names), and add an entry at the top of
-`CHANGELOG.md` in plain, user-facing words.
+`src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`),
+and add an entry at the top of `CHANGELOG.md` in plain, user-facing words.
+Then publish a GitHub Release (section 11) so the README's download buttons
+serve it.
 
 ## 2. Layout
 
@@ -261,6 +263,14 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   while typing doesn't animate.
 - Overlay: only the join halo, the count roll + bump, and the bubble grow and
   glide. Nothing on the overlay loops.
+- Launch: the logo (`components/Logo.svelte`, `assets/appicon.svg`) shows for
+  `--t-launch-hold`, then Animista's slide-out-fwd-center (translateZ to
+  `--launch-depth` under `--launch-perspective`, fading, `--t-launch` on
+  `--ease-launch`, the user's exit curve) while the backdrop fades; a timer
+  removes it. Reduced motion: it only fades. The logo also sits in About and
+  the empty list.
+- Card hover: Animista's shadow-inset-center (`inset 0 0 14px --card-inset`,
+  `--t-inset` on `--ease-inset`); the keyboard focus ring skips that fade.
 - Toasts (`components/Toasts.svelte` + `Toast.svelte`, Animate UI's toast as
   CSS): a stack, newest in front, up to 3 (`TOAST_LIMIT`); behind ones scale
   `max(0.9, 1 - i * 0.05)` and peek `--toast-peek` above; hover or focus opens
@@ -311,6 +321,12 @@ protection to every VC Alert window.
   means accepting Microsoft's license: ask the user first. The .exe needs
   WebView2 (built into Windows 11; the installer fetches it on Windows 10).
   Unsigned, so SmartScreen shows "More info → Run anyway".
+- **Releases:** `gh release create vX.Y.Z` with the notes from CHANGELOG.md and
+  these exact asset names, which the README's buttons link to through
+  `releases/latest/download/…`: `VC-Alert-macOS.dmg` (the universal DMG),
+  `VC-Alert-Windows-setup.exe` (NSIS), `VC-Alert-Windows.msi`,
+  `VC-Alert-Windows-portable.exe` (`vc-alert.exe`). Renaming any of them
+  breaks the download buttons.
 
 ## 12. Verified vs not verified
 

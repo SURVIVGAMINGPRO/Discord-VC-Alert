@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Logo from '../components/Logo.svelte';
   import { onMount } from 'svelte';
   import Button from '../components/Button.svelte';
   import CredentialsForm from '../components/CredentialsForm.svelte';
@@ -368,7 +369,10 @@
           </div>
         {:else}
           <h1 id="h-about">About</h1>
-          <p class="lead">VC Alert {snap.version}</p>
+          <div class="about-head">
+            <Logo size={48} />
+            <p class="lead">VC Alert {snap.version}</p>
+          </div>
           <p class="body">VC Alert talks only to the Discord app on this computer, to Discord's sign-in when you approve it, and to Discord's picture server for profile pictures. No bot, no account token, nothing posted anywhere.</p>
           <p class="body">Your Client Secret and Discord approval are kept in your system's keychain.</p>
         {/if}
@@ -469,6 +473,18 @@
     margin: 0 0 var(--sp-3);
     max-width: 60ch;
     color: var(--text-2);
+  }
+  .about-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+  }
+  .about-head .lead {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-medium);
   }
   .body {
     margin: 0 0 var(--sp-3);
