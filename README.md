@@ -8,11 +8,11 @@ token, nothing posted anywhere, and nobody else can see it.
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.4_universal.dmg` and drag VC Alert to
+- **macOS:** open `VC Alert_2.0.5_universal.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.4_x64-setup.exe` (no admin needed), or use the
+- **Windows:** run `VC Alert_2.0.5_x64-setup.exe` (no admin needed), or use the
   portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
@@ -45,9 +45,10 @@ minutes, once.
 - **Sounds:** the default is *Classic* (1700 Hz, 90 ms, 3 beeps, 75%). Tune a
   beep and choose **Save as profile** to keep up to 3 of your own, with names
   of up to 12 characters.
-- **Own sound:** the speaker button on a person gives them their own beep or
-  sound file. Right-click a person (or press Enter on them) for Rename,
-  Sound…, Copy username and Remove. Delete removes the selected person, with Undo.
+- **Own sound:** open a person's ⋯ menu (or right-click them, or press Enter
+  on them) and choose **Sound…** to give them their own beep or sound file.
+  The same menu has Rename, Copy username and Remove. People with their own
+  sound show a **Custom** tag. Delete removes the selected person, with Undo.
 - **Quiet:** the bell button turns off sound and the overlay; the list still
   shows who joins.
 - **Overlay:** **Settings → Overlay** sets the style (pictures, a count, or

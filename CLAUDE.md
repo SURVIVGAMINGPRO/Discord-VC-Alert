@@ -33,7 +33,8 @@ v1's spec still describes the intended behaviour.
 
 Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
 the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
-profile pictures everywhere, 2.0.4 the list as cards, and so on (2.0.x). Change it in
+profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
+scrollbar, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
 
@@ -194,8 +195,8 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
 - Themes: `ink` (default dark), `graphite`, `paper` (light). Saved values map:
   `onyx`→Ink, `graphite`→Graphite, `paper`→Paper, `night`→Ink,
   `system`→Ink/Paper from the OS (`resolveTheme` in `lib/app.svelte.ts`).
-- Colour meaning: blurple `--accent` is the only action colour and the focus
-  ring; green `--live` only ever means "someone is live in your call"; red only
+- Colour meaning: blurple `--accent` is the only action colour, the focus
+  ring and the list's scroll progress bar; green `--live` only ever means "someone is live in your call"; red only
   for removing things.
 - Type: the platform font for the UI; **Atkinson Hyperlegible Mono only for
   usernames and IDs** (class `.id`). Sizes 11/12/13/15/18.
@@ -210,7 +211,10 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   each person is a card (surface, hairline edge, 8 px apart, no dividers):
   36 px avatar, name, then @username/ID and, while in the channel, "joined
   2 min ago" in green. Right side: a "Custom" tag for their own sound; on hover
-  or focus round Sound and More buttons take its place (the tag hides at once).
+  or focus a round More (⋯) button takes its place (the tag hides at once).
+  Sound… lives in that menu. The list has no scrollbar (it made the right-hand
+  gap uneven): a 2 px blurple bar on the footer's top line fills left to right
+  with the scroll position, and only shows when the list can scroll.
 - Copy: plain, sentence case, no "please", controls name their action and the
   resulting toast reuses the verb.
 - The overlay uses only `--ov-*` tokens (theme-independent): dark plates with a

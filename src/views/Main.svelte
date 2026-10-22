@@ -217,11 +217,18 @@
   let listEl: HTMLDivElement | undefined = $state();
   let edgeTop = $state(false);
   let edgeBottom = $state(false);
+  // The list has no scrollbar (it made the gap beside the cards uneven); a
+  // blurple bar above the footer shows how far down you are instead.
+  let scrollable = $state(false);
+  let progress = $state(0);
 
   function edges() {
     if (!listEl) return;
+    const max = listEl.scrollHeight - listEl.clientHeight;
     edgeTop = listEl.scrollTop > 2;
-    edgeBottom = listEl.scrollTop + listEl.clientHeight < listEl.scrollHeight - 2;
+    edgeBottom = listEl.scrollTop < max - 2;
+    scrollable = max > 2;
+    progress = scrollable ? Math.min(1, Math.max(0, listEl.scrollTop / max)) : 0;
   }
   $effect(() => {
     void items.length;
@@ -398,7 +405,7 @@
   }
 </script>
 
-<svelte:window onkeydown={globalKeys} />
+<svelte:window onkeydown={globalKeys} onresize={edges} />
 
 <div class="main">
   <header class="status">
@@ -537,7 +544,6 @@
             active={activeRow === k}
             renaming={renaming === k}
             onmenu={(x, y) => rowMenu(it.t, x, y)}
-            onsound={() => (soundFor = it.t)}
             onremove={() => remove(it.t)}
             onrename={(l) => rename(it.t, l)}
             onfocusrow={() => (activeKey = k)}
@@ -560,6 +566,9 @@
   </div>
 
   <footer>
+    <div class="progress" class:on={scrollable} aria-hidden="true">
+      <span class="fill" style:transform="scaleX({progress})"></span>
+    </div>
     <div class="sound">
       <span class="spk"><SpeakerIcon size={18} playing={testing} /></span>
       <button type="button" class="sound-text" onclick={() => call('open_settings', { tab: 'sound' })} title="Change the universal sound">
@@ -784,6 +793,10 @@
     --fade: 24px;
     /* Keyboard focus never lands inside the faded edges. */
     scroll-padding-block: var(--fade);
+    scrollbar-width: none;
+  }
+  .list::-webkit-scrollbar {
+    display: none;
   }
   .list.edge-top {
     mask-image: linear-gradient(to bottom, transparent, currentColor var(--fade));
@@ -881,8 +894,31 @@
 
   /* ---------------------------------------------------------- footer */
   footer {
+    position: relative;
     border-top: 1px solid var(--line);
     background: var(--surface);
+  }
+  /* Scroll progress, left to right, drawn over the footer's top line. It
+     follows the scroll directly (no easing) and only shows when the list
+     can scroll. */
+  .progress {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--t-fade) var(--ease-color);
+  }
+  .progress.on {
+    opacity: 1;
+  }
+  .fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transform-origin: left center;
   }
   .sound {
     display: flex;

@@ -3,7 +3,8 @@
   // The line under the name shows who they are (@username or ID, unless the
   // label already is the username) and, while they're in your channel, how
   // long ago they joined. Right side: a "Custom" tag for their own sound, and
-  // round Sound and More buttons that take its place on hover or focus.
+  // a round More button (Rename, Sound…, Copy, Remove) that takes its place on
+  // hover or focus.
   import Avatar from '../components/Avatar.svelte';
   import IconButton from '../components/IconButton.svelte';
   import type { Target } from '../lib/types';
@@ -19,7 +20,6 @@
     active,
     renaming,
     onmenu,
-    onsound,
     onremove,
     onrename,
     onfocusrow,
@@ -34,7 +34,6 @@
     active: boolean;
     renaming: boolean;
     onmenu: (x: number, y: number) => void;
-    onsound: () => void;
     onremove: () => void;
     onrename: (label: string | null) => void;
     onfocusrow: () => void;
@@ -163,21 +162,9 @@
   </div>
   <div class="side">
     {#if ownSound}<span class="tag" title="Has their own sound">Custom</span>{/if}
-    <div class="acts">
-      <IconButton
-        round
-        flat={false}
-        size={28}
-        icon="volume_up"
-        label={ownSound ? `${t.label} has their own sound` : `Choose a sound for ${t.label}`}
-        tone={ownSound ? 'accent' : undefined}
-        tabindex={-1}
-        onclick={onsound}
-      />
-      <span class="more" bind:this={more}>
-        <IconButton round flat={false} size={28} icon="more_horiz" label="More for {t.label}" tabindex={-1} onclick={openFromButton} />
-      </span>
-    </div>
+    <span class="acts" bind:this={more}>
+      <IconButton round flat={false} size={28} icon="more_horiz" label="More for {t.label}" tabindex={-1} onclick={openFromButton} />
+    </span>
   </div>
 </div>
 
@@ -300,11 +287,7 @@
   }
   .acts {
     display: flex;
-    gap: var(--sp-2);
     opacity: 0;
-  }
-  .more {
-    display: flex;
   }
   .row:hover .acts,
   .row:focus-within .acts {
