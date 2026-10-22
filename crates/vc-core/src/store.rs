@@ -138,20 +138,7 @@ impl Store {
 
     /// A new, empty list, which becomes the watched one. Returns its index.
     pub fn add_list(&mut self, name: &str) -> Result<usize, String> {
-        use crate::config::{clean_list_name, WatchList, MAX_LISTS};
-        if self.cfg.lists.len() >= MAX_LISTS {
-            return Err(format!("You can have {MAX_LISTS} lists. Delete one first."));
-        }
-        let n = clean_list_name(name);
-        if n.is_empty() {
-            return Err("Give the list a name.".into());
-        }
-        if self.cfg.lists.iter().any(|l| l.name.to_lowercase() == n.to_lowercase()) {
-            return Err(format!("You already have a list called “{n}”."));
-        }
-        self.cfg.lists.push(WatchList { name: n, targets: Vec::new() });
-        let i = self.cfg.lists.len() - 1;
-        self.cfg.switch_list(i);
+        let i = self.cfg.add_list(name)?;
         self.save()?;
         Ok(i)
     }

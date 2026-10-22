@@ -92,7 +92,7 @@
   --t-flash: 1500ms; /* static join ring under reduced motion */
   --t-inset: 400ms; /* a card's inner shadow on hover (Animista shadow-inset-center) */
   --t-launch: 400ms; /* the launch logo zooming out (Animista slide-out-fwd-center) */
-  --t-launch-hold: 350ms; /* how long the launch logo shows first */
+  --t-launch-hold: 450ms; /* how long the launch logo shows first */
 
   --press-scale: 0.97;
   --row-press-scale: 0.985;

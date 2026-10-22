@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Share a list with friends, or back everything up.
+  // Share one of your lists with friends, or back everything up.
   import Sheet from '../components/Sheet.svelte';
   import Button from '../components/Button.svelte';
   import Icon from '../components/Icon.svelte';
@@ -17,6 +17,9 @@
   const cfg = $derived(app.snap!.config);
 
   let kind = $state<ExportOptions['kind']>('watchlist');
+  // Which list to share: the watched one unless you pick another.
+  let list = $state(app.snap!.config.active_list);
+  const people = $derived(list === cfg.active_list ? cfg.targets : (cfg.lists[list]?.targets ?? []));
   let who = $state<'all' | 'some'>('all');
   let picked = $state<Record<string, boolean>>({});
   let name = $state('');
@@ -31,8 +34,9 @@
     embed_sounds: embed,
     include_credentials: kind === 'backup' && creds,
     name: kind === 'watchlist' && name.trim() ? name.trim() : null,
+    list: kind === 'watchlist' ? list : null,
   });
-  const count = $derived(who === 'some' ? Object.values(picked).filter(Boolean).length : cfg.targets.length);
+  const count = $derived(who === 'some' ? Object.values(picked).filter(Boolean).length : people.length);
 
   async function copy() {
     try {
@@ -60,8 +64,8 @@
   }
 
   const ABOUT = {
-    watchlist: 'Names, usernames and per-person beeps. Never your Discord app details or settings.',
-    backup: 'Everything: your list, sounds and settings. Keep it for yourself.',
+    watchlist: 'One list: names, usernames and their sounds. Never your Discord app details or settings.',
+    backup: 'Everything: all your lists, sounds and settings. Keep it for yourself.',
   };
 </script>
 
@@ -78,10 +82,28 @@
     />
     <p class="about">{ABOUT[kind]}</p>
 
+    {#if kind === 'watchlist' && cfg.lists.length > 1}
+      <div class="opt" in:unfold out:fold>
+        <span>Which list</span>
+        <select
+          class="select"
+          aria-label="Which list to share"
+          value={list}
+          onchange={(e) => {
+            list = Number((e.target as HTMLSelectElement).value);
+            picked = {};
+          }}
+        >
+          {#each cfg.lists as l, i}
+            <option value={i}>{l.name} ({i === cfg.active_list ? cfg.targets.length : l.targets.length})</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
     {#if kind === 'watchlist'}
       <div in:unfold out:fold>
-        <span class="lbl">List name (optional)</span>
-        <TextField label="List name" placeholder="Friday squad" bind:value={name} />
+        <span class="lbl">Name in the file (optional)</span>
+        <TextField label="Name in the file" placeholder={cfg.lists[list]?.name ?? 'Friday squad'} bind:value={name} />
       </div>
     {/if}
 
@@ -92,7 +114,7 @@
           label="Who to include"
           value={who}
           options={[
-            { value: 'all', label: `Everyone (${cfg.targets.length})` },
+            { value: 'all', label: `Everyone (${people.length})` },
             { value: 'some', label: 'Choose people' },
           ]}
           onchange={(v) => (who = v)}
@@ -100,7 +122,7 @@
       </div>
       {#if who === 'some'}
         <ul class="pick" in:unfold out:fold aria-label="People to include">
-          {#each sortTargets(cfg.targets) as t (keyOf(t))}
+          {#each sortTargets(people) as t (keyOf(t))}
             <li>
               <label><input type="checkbox" bind:checked={picked[keyOf(t)]} /> {t.label}</label>
             </li>
@@ -204,5 +226,14 @@
   }
   .ic-in {
     display: inline-flex;
+  }
+  .select {
+    height: var(--h-md);
+    padding: 0 var(--sp-2);
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--raised);
+    box-shadow: inset 0 0 0 1px var(--line-strong);
+    color: var(--text);
   }
 </style>

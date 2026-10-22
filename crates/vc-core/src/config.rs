@@ -802,6 +802,34 @@ impl Config {
         self.active_list = i;
     }
 
+    /// A new, empty list that becomes the watched one (at most 5, a name of up
+    /// to 12 characters, unique ignoring case). Returns its index.
+    pub fn add_list(&mut self, name: &str) -> Result<usize, String> {
+        if self.lists.len() >= MAX_LISTS {
+            return Err(format!("You can have {MAX_LISTS} lists. Delete one first."));
+        }
+        let n = clean_list_name(name);
+        if n.is_empty() {
+            return Err("Give the list a name.".into());
+        }
+        if self.lists.iter().any(|l| l.name.to_lowercase() == n.to_lowercase()) {
+            return Err(format!("You already have a list called “{n}”."));
+        }
+        self.lists.push(WatchList { name: n, targets: Vec::new() });
+        let i = self.lists.len() - 1;
+        self.switch_list(i);
+        Ok(i)
+    }
+
+    /// The people on list `i` (the active list's live in `targets`).
+    pub fn list_targets(&self, i: usize) -> Option<&Vec<Target>> {
+        if i == self.active_list {
+            Some(&self.targets)
+        } else {
+            self.lists.get(i).map(|l| &l.targets)
+        }
+    }
+
     pub fn find(&self, key: &str) -> Option<&Target> {
         let k = norm_key(key);
         self.targets.iter().find(|t| t.key().to_lowercase() == k)

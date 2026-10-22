@@ -381,6 +381,10 @@ pub struct ApplyOptions {
     pub import_settings: bool,
     #[serde(default)]
     pub import_credentials: bool,
+    /// Import the file's people as a new list with this name (it becomes the
+    /// watched list; your others stay as they are).
+    #[serde(default)]
+    pub new_list: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -395,6 +399,18 @@ pub struct Applied {
 /// Merge or replace. `data_dir` is where `sounds/` lives; sound paths are
 /// stored relative to it.
 pub fn apply(p: &Parsed, cur: &Config, o: &ApplyOptions, data_dir: &Path) -> Result<Applied, String> {
+    // As a new list: start from a copy with a fresh, empty list switched to,
+    // so the merge below fills it and leaves every other list alone.
+    let fresh;
+    let cur = match o.new_list.as_deref() {
+        Some(name) => {
+            let mut c = cur.clone();
+            c.add_list(name)?;
+            fresh = c;
+            &fresh
+        }
+        None => cur,
+    };
     let lower = |v: &[String]| v.iter().map(|k| crate::config::norm_key(k)).collect::<Vec<_>>();
     let selected = lower(&o.selected);
     let theirs = lower(&o.theirs);
@@ -539,6 +555,10 @@ pub struct ExportOptions {
     pub include_credentials: bool,
     #[serde(default)]
     pub name: Option<String>,
+    /// Which of your lists to share (None: the one you're watching). A shared
+    /// list carries that list's name unless `name` is given.
+    #[serde(default)]
+    pub list: Option<usize>,
 }
 
 pub fn default_filename(o: &ExportOptions, today: &str) -> String {
@@ -546,8 +566,24 @@ pub fn default_filename(o: &ExportOptions, today: &str) -> String {
         "backup" if o.include_credentials => format!("vc-alert-backup-{today}-private.json"),
         "backup" => format!("vc-alert-backup-{today}.json"),
         "v1" => "vc-alert-v1-config.json".into(),
-        _ => format!("vc-alert-list-{today}.json"),
+        _ => match o.name.as_deref().map(slug).filter(|s| !s.is_empty()) {
+            Some(s) => format!("vc-alert-{s}-{today}.json"),
+            None => format!("vc-alert-list-{today}.json"),
+        },
     }
+}
+
+/// "Late night!" → "late-night", for file names.
+fn slug(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.chars().flat_map(char::to_lowercase) {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else if !out.ends_with('-') && !out.is_empty() {
+            out.push('-');
+        }
+    }
+    out.trim_end_matches('-').to_string()
 }
 
 pub fn export(
@@ -559,8 +595,10 @@ pub fn export(
     app_version: &str,
 ) -> Result<String, String> {
     let wanted: Option<Vec<String>> = o.keys.as_ref().map(|k| k.iter().map(|x| crate::config::norm_key(x)).collect());
-    let mut targets: Vec<Target> = cfg
-        .targets
+    let list = o.list.filter(|_| o.kind != "backup").unwrap_or(cfg.active_list);
+    let source = cfg.list_targets(list).ok_or("That list doesn't exist any more.")?;
+    let list_name = cfg.lists.get(list).map(|l| l.name.clone());
+    let mut targets: Vec<Target> = source
         .iter()
         .filter(|t| wanted.as_ref().is_none_or(|w| w.contains(&t.key().to_lowercase())))
         .cloned()
@@ -612,7 +650,8 @@ pub fn export(
         h.insert("version".into(), json!(crate::config::FILE_VERSION));
         h.insert("exported".into(), json!(today));
         h.insert("app".into(), json!(format!("VC Alert {app_version}")));
-        if let Some(n) = o.name.as_ref().map(|n| crate::config::clean_label(n)).filter(|n| !n.is_empty()) {
+        let name = o.name.clone().filter(|n| !n.trim().is_empty()).or(if kind == "watchlist" { list_name.clone() } else { None });
+        if let Some(n) = name.map(|n| crate::config::clean_label(&n)).filter(|n| !n.is_empty()) {
             h.insert("name".into(), json!(n));
         }
         Value::Object(h)
@@ -739,6 +778,7 @@ mod tests {
             theirs: vec![],
             import_settings: false,
             import_credentials: false,
+            new_list: None,
         };
         let a = apply(&p, &cur, &o, dir.path()).unwrap();
         assert_eq!(a.cfg.targets.len(), 3);
@@ -765,7 +805,7 @@ mod tests {
         ]}"#;
         let p = parse(text, &ParseOptions::default()).unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let o = ApplyOptions { mode: "merge".into(), selected: vec![], theirs: vec![], import_settings: true, import_credentials: false };
+        let o = ApplyOptions { mode: "merge".into(), selected: vec![], theirs: vec![], import_settings: true, import_credentials: false, new_list: None };
         let a = apply(&p, &cur, &o, dir.path()).unwrap();
         let names: Vec<&str> = a.cfg.beep_profiles.iter().map(|x| x.name.as_str()).collect();
         assert_eq!(names, ["Mine", "Shared", "Theirs"]);
@@ -783,6 +823,7 @@ mod tests {
             theirs: vec![],
             import_settings: false,
             import_credentials: false,
+            new_list: None,
         };
         let a = apply(&p, &cur, &o, dir.path()).unwrap();
         assert_eq!(a.cfg.keys(), vec!["beta", "gamma"]);
@@ -807,7 +848,7 @@ mod tests {
         assert!(p.targets[0].sound.is_some());
         let data = tempfile::tempdir().unwrap();
         let a = apply(&p, &Config::default(), &ApplyOptions {
-            mode: "merge".into(), selected: vec!["tt".into()], theirs: vec![], import_settings: false, import_credentials: false,
+            mode: "merge".into(), selected: vec!["tt".into()], theirs: vec![], import_settings: false, import_credentials: false, new_list: None,
         }, data.path()).unwrap();
         assert_eq!(a.cfg.targets[0].sound.as_ref().unwrap().file.as_deref(), Some("sounds/horn.wav"));
         assert!(data.path().join("sounds/horn.wav").exists());
@@ -823,7 +864,7 @@ mod tests {
         cfg.targets[1].label = "Maria".into();
         cfg.targets[1].sound = Some(SoundSpec { file: Some(rel), beep: Some(PartialBeep { repeats: Some(2), ..Default::default() }) });
         for kind in ["watchlist", "backup", "v1"] {
-            let o = ExportOptions { kind: kind.into(), keys: None, embed_sounds: true, include_credentials: false, name: Some("Friends".into()) };
+            let o = ExportOptions { kind: kind.into(), keys: None, embed_sounds: true, include_credentials: false, name: Some("Friends".into()), list: None };
             let text = export(&cfg, &o, Some("SECRET"), data.path(), "2026-10-21", "2.0.0").unwrap();
             assert!(!text.contains("SECRET"), "{kind} leaked the secret");
             assert!(!text.contains("access_token"));
@@ -839,11 +880,11 @@ mod tests {
             assert_eq!(v["targets"][1]["label"], "Maria");
             assert_eq!(v["targets"][1]["username"], "maria_k");
         }
-        let o = ExportOptions { kind: "backup".into(), keys: None, embed_sounds: false, include_credentials: true, name: None };
+        let o = ExportOptions { kind: "backup".into(), keys: None, embed_sounds: false, include_credentials: true, name: None, list: None };
         let text = export(&cfg, &o, Some("SECRET"), data.path(), "2026-10-21", "2.0.0").unwrap();
         assert!(text.contains("SECRET"));
         assert!(default_filename(&o, "2026-10-21").ends_with("-private.json"));
-        let only = ExportOptions { kind: "watchlist".into(), keys: Some(vec!["@MARIA_K".into()]), embed_sounds: false, include_credentials: false, name: None };
+        let only = ExportOptions { kind: "watchlist".into(), keys: Some(vec!["@MARIA_K".into()]), embed_sounds: false, include_credentials: false, name: None, list: None };
         let text = export(&cfg, &only, None, data.path(), "d", "2").unwrap();
         let p = parse(&text, &ParseOptions::default()).unwrap();
         assert_eq!(p.targets.len(), 1);
@@ -863,7 +904,7 @@ mod tests {
         let mut cfg = cfg_with(&["alpha"]);
         cfg.targets[0].leave_sound = false;
         cfg.targets[0].leave = Some(SoundSpec { file: Some("/somewhere/private/leave.wav".into()), beep: None });
-        let o = ExportOptions { kind: "watchlist".into(), keys: None, embed_sounds: false, include_credentials: false, name: None };
+        let o = ExportOptions { kind: "watchlist".into(), keys: None, embed_sounds: false, include_credentials: false, name: None, list: None };
         let text = export(&cfg, &o, None, dir.path(), "2026-10-22", "test").unwrap();
         assert!(!text.contains("/somewhere"), "no file paths in a shared list");
         let v: Value = serde_json::from_str(&text).unwrap();
@@ -874,6 +915,42 @@ mod tests {
             "leave":{"file":"/etc/passwd"}}]}"#, &ParseOptions::default()).unwrap();
         assert!(p.targets[0].leave.is_none());
         assert!(p.targets[0].leave_sound);
+    }
+
+    #[test]
+    fn one_list_out_and_in_as_a_new_list() {
+        let dir = tempfile::tempdir().unwrap();
+        // Two lists: "Main" (watched) and "Gaming" with its own sound for maria_k.
+        let mut cfg = cfg_with(&["alpha"]);
+        let mut gaming = cfg_with(&["maria_k", "beta"]).targets;
+        gaming[0].sound = Some(SoundSpec { file: None, beep: Some(PartialBeep { repeats: Some(4), ..Default::default() }) });
+        cfg.lists.push(crate::config::WatchList { name: "Gaming".into(), targets: gaming });
+
+        let o = ExportOptions { kind: "watchlist".into(), keys: None, embed_sounds: false, include_credentials: false, name: None, list: Some(1) };
+        let text = export(&cfg, &o, None, dir.path(), "2026-10-22", "test").unwrap();
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["vc_alert"]["name"], json!("Gaming"), "a shared list carries its name");
+        assert_eq!(v["targets"].as_array().unwrap().len(), 2, "that list's people, not the watched list's");
+        assert_eq!(v["targets"][0]["sound"]["beep"]["repeats"], json!(4), "with that list's sounds");
+        assert_eq!(default_filename(&ExportOptions { name: Some("Late night!".into()), ..o.clone() }, "2026-10-22"), "vc-alert-late-night-2026-10-22.json");
+        assert!(export(&cfg, &ExportOptions { list: Some(7), ..o.clone() }, None, dir.path(), "d", "t").is_err());
+
+        // Import it on another computer as a new list.
+        let p = parse(&text, &ParseOptions::default()).unwrap();
+        assert_eq!(p.name.as_deref(), Some("Gaming"));
+        let keys: Vec<String> = p.targets.iter().map(|t| t.key().to_string()).collect();
+        let a = ApplyOptions { mode: "merge".into(), selected: keys, theirs: vec![], import_settings: false, import_credentials: false, new_list: Some("Gaming".into()) };
+        let mine = cfg_with(&["alpha", "maria_k"]);
+        let got = apply(&p, &mine, &a, dir.path()).unwrap().cfg;
+        assert_eq!(got.lists.len(), 2);
+        assert_eq!(got.lists[got.active_list].name, "Gaming", "the new list is the watched one");
+        assert_eq!(got.targets.len(), 2);
+        assert_eq!(got.lists[0].targets.len(), 2, "the list you had is untouched");
+        let mut full = mine.clone();
+        for n in ["B", "C", "D", "E"] {
+            full.add_list(n).unwrap();
+        }
+        assert!(apply(&p, &full, &a, dir.path()).unwrap_err().contains("5 lists"));
     }
 }
 

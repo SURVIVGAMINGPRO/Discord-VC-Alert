@@ -91,14 +91,17 @@ minutes, once.
 ## Sharing lists with friends
 
 **Settings → Import and export → Export…**
-- **List for friends:** names, usernames and per-person beeps (custom sound
-  files can be included). Never your Discord app details or settings.
-- **Full backup:** everything, for yourself. Discord app details are included
-  only if you tick the box, and the file name then ends in `-private`.
+- **List for friends:** one of your lists (pick which), with its name,
+  usernames and their sounds (custom sound files can be included). Never your
+  Discord app details or settings.
+- **Full backup:** everything, all your lists included, for yourself. Discord
+  app details are included only if you tick the box, and the file name then
+  ends in `-private`.
 
 To import, drag a `.json` onto the window, use the add menu next to the search
 box, or **Settings → Import and export**. You see exactly what's in the file
-before anything changes, and a backup is saved first.
+before anything changes, then choose: **Add to this list**, **Replace it**, or
+**As a new list** (named after the shared list). A backup is saved first.
 
 Your friends need their own Discord application (steps 1–6 above).
 

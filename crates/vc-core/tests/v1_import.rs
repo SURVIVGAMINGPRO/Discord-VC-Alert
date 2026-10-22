@@ -28,7 +28,7 @@ fn imports_the_real_v1_folder_when_present() {
     let data = tempfile::tempdir().unwrap();
     let keys: Vec<String> = p.targets.iter().map(|t| t.key().to_string()).collect();
     let a = apply(&p, &Config::default(), &ApplyOptions {
-        mode: "merge".into(), selected: keys, theirs: vec![], import_settings: true, import_credentials: true,
+        mode: "merge".into(), selected: keys, theirs: vec![], import_settings: true, import_credentials: true, new_list: None,
     }, data.path()).unwrap();
     assert_eq!(a.cfg.targets.len(), pv.total);
     // Per-person beeps survive; gap_ratio is never per-person.
@@ -68,7 +68,7 @@ fn imports_a_synthetic_v1_config() {
     let a = apply(&p, &Config::default(), &ApplyOptions {
         mode: "merge".into(),
         selected: p.targets.iter().map(|t| t.key().to_string()).collect(),
-        theirs: vec![], import_settings: true, import_credentials: true,
+        theirs: vec![], import_settings: true, import_credentials: true, new_list: None,
     }, data.path()).unwrap();
     assert_eq!(a.cfg.targets.len(), 4);
     assert_eq!(a.cfg.overlay.avatar_px, 16);

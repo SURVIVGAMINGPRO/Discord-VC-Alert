@@ -174,6 +174,8 @@ export interface ExportOptions {
   embed_sounds: boolean;
   include_credentials: boolean;
   name: string | null;
+  /** Which list to share (null: the one you're watching). */
+  list: number | null;
 }
 
 export type Item =

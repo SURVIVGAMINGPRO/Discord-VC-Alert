@@ -7,6 +7,19 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.1.2 (2026-10-22)
+
+### Added
+- **Share one list.** **Export… → List for friends** lets you pick which of
+  your lists to share, and the file carries the list's name (and is named
+  after it, like `vc-alert-gaming-….json`).
+- **Import as a new list.** Importing a file now offers **As a new list**,
+  named after the shared list, next to adding to or replacing the list you're
+  watching. Your other lists stay as they are.
+
+### Changed
+- The launch logo stays 0.1 s longer before it zooms away.
+
 ## 2.1.1 (2026-10-22)
 
 ### Added

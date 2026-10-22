@@ -38,8 +38,8 @@ scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar s
 and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
 options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, 2.1.0
 the logo, its launch zoom, the card hover shadow and GitHub Releases, 2.1.1
-lists, group calls, leave sound choices and "Show in screen sharing"; fixes
-from here are 2.1.x. Change it in
+lists, group calls, leave sound choices and "Show in screen sharing", 2.1.2
+single-list export and "import as a new list"; fixes from here are 2.1.x. Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`),
 and add an entry at the top of `CHANGELOG.md` in plain, user-facing words.
@@ -91,7 +91,7 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (55 at the time of writing)
+cargo test -p vc-core             # engine tests (56 at the time of writing)
 cargo test -p vc-core --test avatars_live -- --ignored   # real CDN download (network)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
@@ -154,7 +154,10 @@ Ported from v1 and covered by tests; keep them green.
   ignoring case. `targets` is always the active list's people (so everything
   that reads it is unchanged); `lists[active_list].targets` stays empty and
   `Config::switch_list` swaps them. A file without `lists` gets one, "Main".
-  Watch-list exports and imports work on the active list; a backup has all. A broken file is
+  A watch-list export takes any list (`ExportOptions.list`, default the
+  active one) and carries its name; an import adds to or replaces the active
+  list, or with `ApplyOptions.new_list` becomes a new list (`Config::add_list`,
+  switched to). A backup has all lists. A broken file is
   moved aside (`settings.broken-<time>.json`), never overwritten.
 - Secrets: one keychain item (service "VC Alert", account "discord") holding
   `{client_secret, token}`, so macOS asks at most once. Falls back to

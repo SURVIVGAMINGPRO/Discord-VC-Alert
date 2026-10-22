@@ -71,7 +71,7 @@ const snap: Snapshot = {
   snoozed: qp.get('snoozed') === '1' ? [{ key: 'samwise', until: Date.now() + 52 * 60000 }, { key: 'pixel_fox', until: null }] : [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.1.1',
+  version: '2.1.2',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,
@@ -312,7 +312,7 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
       return 'you';
     case 'import_preview':
       return {
-        kind: 'v1_config', kind_label: 'VC Alert 1 config', name: null, total: 5, new: 3, same: 1, different: 1,
+        kind: 'watchlist', kind_label: 'Shared list', name: 'Friday squad', total: 5, new: 3, same: 1, different: 1,
         rows: [
           { key: 'lumen_88', label: 'lumen_88', username: 'lumen_88', id: null, status: 'new', mine_label: null, has_sound: false, sound_differs: false },
           { key: 'pineapple', label: 'Robin', username: 'pineapple', id: null, status: 'new', mine_label: null, has_sound: true, sound_differs: false },
@@ -324,12 +324,27 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
         has_settings: true, has_credentials: true, has_token: a.migration, has_avatars: a.migration,
         missing_sounds: ['The Twins'], embedded_sounds: 0,
       } satisfies Preview;
-    case 'import_apply':
-      return { added: a.options.selected.length, updated: a.options.theirs.length, removed: 0, pictures: 0, backup: null };
-    case 'export_text':
-      return JSON.stringify({ vc_alert: { kind: a.options.kind, version: 2 }, targets: config.targets }, null, 2);
-    case 'export_filename':
-      return 'vc-alert-list-2026-10-21.json';
+    case 'import_apply': {
+      if (a.options.new_list) {
+        if (config.lists.length >= 5) throw 'You can have 5 lists. Delete one first.';
+        config.lists.push({ name: a.options.new_list, targets: [] });
+        switchList(config.lists.length - 1);
+        config.targets = a.options.selected.map((k: string) => ({ label: k, username: k }));
+        changed();
+      }
+      return { added: a.options.selected.length, updated: a.options.new_list ? 0 : a.options.theirs.length, removed: 0, pictures: 0, backup: null };
+    }
+    case 'export_text': {
+      const i = a.options.list ?? config.active_list;
+      const list = i === config.active_list ? config.targets : config.lists[i].targets;
+      const name = a.options.name ?? (a.options.kind === 'watchlist' ? config.lists[i].name : undefined);
+      return JSON.stringify({ vc_alert: { kind: a.options.kind, version: 2, name }, targets: list }, null, 2);
+    }
+    case 'export_filename': {
+      const n = a.options.kind === 'watchlist' ? (a.options.name ?? config.lists[a.options.list ?? config.active_list]?.name) : null;
+      const slug = n ? n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : 'list';
+      return `vc-alert-${slug}-2026-10-22.json`;
+    }
     case 'list_backups':
       return [{ name: 'settings-2026-10-21_14-03-00.json', when: '2026-10-21 14:03:00' }];
     case 'clear_pictures':

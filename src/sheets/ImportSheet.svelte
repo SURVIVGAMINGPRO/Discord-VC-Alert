@@ -1,21 +1,28 @@
 <script lang="ts">
-  // Shows what's in a file before anything changes, then merges or replaces.
+  // Shows what's in a file before anything changes, then adds to the watched
+  // list, replaces it, or makes the file's people a new list.
   import Sheet from '../components/Sheet.svelte';
   import Button from '../components/Button.svelte';
   import Icon from '../components/Icon.svelte';
   import Segmented from '../components/Segmented.svelte';
   import Switch from '../components/Switch.svelte';
+  import TextField from '../components/TextField.svelte';
+  import { app } from '../lib/app.svelte';
   import { call, errText } from '../lib/api';
   import { toast } from '../lib/app.svelte';
   import { fold, swapIn, unfold } from '../lib/motion';
-  import { baseName } from '../lib/util';
+  import { baseName, LIST_NAME_MAX, MAX_LISTS } from '../lib/util';
   import type { Preview } from '../lib/types';
 
   let { source, onclose }: { source: { path?: string; text?: string }; onclose: () => void } = $props();
 
   let preview = $state<Preview | null>(null);
   let error = $state('');
-  let mode = $state<'merge' | 'replace'>('merge');
+  let mode = $state<'merge' | 'replace' | 'new'>('merge');
+  let listName = $state('');
+  const cfg = $derived(app.snap!.config);
+  const current = $derived(cfg.lists[cfg.active_list]?.name ?? 'your list');
+  const full = $derived(cfg.lists.length >= MAX_LISTS);
   let selected = $state<Record<string, boolean>>({});
   let theirs = $state<Record<string, boolean>>({});
   let importSettings = $state(false);
@@ -28,6 +35,8 @@
       .then((p) => {
         preview = p;
         for (const r of p.rows) selected[r.key] = r.status !== 'same';
+        const fromFile = p.name ?? (source.path ? baseName(source.path).replace(/\.json$/i, '') : '');
+        listName = [...fromFile.trim()].slice(0, LIST_NAME_MAX).join('').trim();
       })
       .catch((e) => (error = errText(e)));
   });
@@ -46,7 +55,8 @@
     try {
       const r = await call<{ added: number; updated: number; removed: number; pictures: number }>('import_apply', {
         options: {
-          mode,
+          mode: mode === 'new' ? 'merge' : mode,
+          new_list: mode === 'new' ? [...listName.trim()].slice(0, LIST_NAME_MAX).join('') : null,
           selected: preview.rows.filter((x) => selected[x.key]).map((x) => x.key),
           theirs: preview.rows.filter((x) => theirs[x.key]).map((x) => x.key),
           import_settings: importSettings,
@@ -56,7 +66,12 @@
       const parts = [`${r.added} added`];
       if (r.updated) parts.push(`${r.updated} updated`);
       if (r.removed) parts.push(`${r.removed} removed`);
-      toast('ok', `Imported: ${parts.join(', ')}. A backup was saved first.`);
+      toast(
+        'ok',
+        mode === 'new'
+          ? `Created list “${listName.trim()}” with ${r.added === 1 ? '1 person' : `${r.added} people`}. A backup was saved first.`
+          : `Imported: ${parts.join(', ')}. A backup was saved first.`,
+      );
       onclose();
     } catch (e) {
       error = errText(e);
@@ -82,25 +97,39 @@
       </div>
     </div>
 
+    {#if mode !== 'new'}
     <dl class="counts">
       <div><dt>New</dt><dd class="new num">{preview.new}</dd></div>
       <div><dt>Already here</dt><dd class="num">{preview.same}</dd></div>
       <div><dt>Different</dt><dd class="diff num">{preview.different}</dd></div>
     </dl>
+    {/if}
 
     <div class="row">
       <Segmented
         label="How to import"
         value={mode}
         options={[
-          { value: 'merge', label: 'Add to my list' },
-          { value: 'replace', label: 'Replace my list' },
+          { value: 'merge', label: 'Add to this list' },
+          { value: 'replace', label: 'Replace it' },
+          { value: 'new', label: 'As a new list' },
         ]}
-        onchange={(v) => (mode = v)}
+        onchange={(v) => {
+          mode = v;
+          // A new list starts empty, so everyone in the file goes in.
+          if (v === 'new' && preview) for (const r of preview.rows) selected[r.key] = true;
+        }}
       />
     </div>
     {#if mode === 'replace'}
-      <p class="note warn" in:unfold out:fold>People who aren't ticked below will be removed from your list. A backup is saved first.</p>
+      <p class="note warn" in:unfold out:fold>People who aren't ticked below will be removed from “{current}”. A backup is saved first.</p>
+    {:else if mode === 'merge'}
+      <p class="note" in:unfold out:fold>Goes into “{current}”, the list you're watching.</p>
+    {:else}
+      <div class="newlist" in:unfold out:fold>
+        <TextField label="Name of the new list" placeholder="Gaming" maxlength={LIST_NAME_MAX} bind:value={listName} />
+        <p class="note">{full ? `You already have ${MAX_LISTS} lists. Delete one first.` : 'A new list with the people ticked below. VC Alert then watches it; your other lists stay as they are.'}</p>
+      </div>
     {/if}
 
     <ul class="rows" aria-label="People in the file">
@@ -114,7 +143,7 @@
               {#if r.id}<span class="id">ID {r.id.slice(0, 4)}…{r.id.slice(-4)}</span>{/if}
             </span>
           </label>
-          {#if r.status === 'different' && selected[r.key]}
+          {#if mode !== 'new' && r.status === 'different' && selected[r.key]}
             <Segmented
               label="Which version of {r.label}"
               value={theirs[r.key] ? 'theirs' : 'mine'}
@@ -124,7 +153,7 @@
               ]}
               onchange={(v) => (theirs[r.key] = v === 'theirs')}
             />
-          {:else}
+          {:else if mode !== 'new'}
             <span class="tag {r.status}">{STATUS[r.status]}</span>
           {/if}
         </li>
@@ -168,7 +197,12 @@
 
   {#snippet footer()}
     <Button kind="ghost" onclick={close}>Cancel</Button>
-    <Button kind="primary" disabled={!preview || busy || (count === 0 && !importSettings && !importCreds)} swap={String(count)} onclick={apply}>
+    <Button
+      kind="primary"
+      disabled={!preview || busy || (count === 0 && !importSettings && !importCreds) || (mode === 'new' && (full || !listName.trim()))}
+      swap={String(count)}
+      onclick={apply}
+    >
       {count === 1 ? 'Import 1 person' : `Import ${count} people`}
     </Button>
   {/snippet}
@@ -318,5 +352,9 @@
     padding-left: var(--sp-5);
     color: var(--text-3);
     font-size: var(--fs-sm);
+  }
+  .newlist {
+    display: grid;
+    gap: var(--sp-1);
   }
 </style>
