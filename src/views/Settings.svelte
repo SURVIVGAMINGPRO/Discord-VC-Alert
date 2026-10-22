@@ -280,6 +280,13 @@
             <SettingRow title="Quiet mode" sub="No sound and no overlay. The list still shows who joins.">
               <Switch label="Quiet mode" checked={cfg.general.quiet} onchange={(v) => set('general', { quiet: v })} />
             </SettingRow>
+            <SettingRow title="Show a reminder when Quiet is on" sub="A line under the status: “Quiet: no sound or overlay”.">
+              <Switch
+                label="Show a reminder when Quiet is on"
+                checked={cfg.general.quiet_reminder}
+                onchange={(v) => set('general', { quiet_reminder: v })}
+              />
+            </SettingRow>
           </div>
           <h2>Appearance</h2>
           <div class="rows">

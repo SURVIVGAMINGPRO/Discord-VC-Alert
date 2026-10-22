@@ -8,7 +8,8 @@
     size = 30,
     src = null,
     present = false,
-  }: { key: string; label: string; size?: number | string; src?: string | null; present?: boolean } = $props();
+    hint,
+  }: { key: string; label: string; size?: number | string; src?: string | null; present?: boolean; hint?: string } = $props();
 
   const box = $derived(typeof size === 'number' ? `${size}px` : size);
   const letter = $derived(typeof size === 'number' ? `${Math.max(8, Math.round(size * 0.44))}px` : `calc(${size} * 0.44)`);
@@ -16,7 +17,7 @@
   const showInitial = $derived(typeof size !== 'number' || size >= 14);
 </script>
 
-<span class="av" style:width={box} style:height={box}>
+<span class="av" style:width={box} style:height={box} title={src ? undefined : hint}>
   {#if src}
     <img {src} alt="" draggable="false" />
   {:else}

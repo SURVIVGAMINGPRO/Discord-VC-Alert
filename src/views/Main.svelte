@@ -18,13 +18,31 @@
   import { app, avatars, loadAvatars, toast, watchAvatars } from '../lib/app.svelte';
   import { call, errText, on, onFileDrop, pickFile } from '../lib/api';
   import { flipParams, glide, rise, shake, shrink, swapIn, unfold, fold } from '../lib/motion';
-  import { ago, describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
+  import { ago, customTag, describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
   import type { Target } from '../lib/types';
 
   const snap = $derived(app.snap!);
   const cfg = $derived(snap.config);
   const n = $derived(cfg.targets.length);
   const quiet = $derived(cfg.general.quiet);
+  // The Quiet line: × hides it until Quiet is next turned on; "Don't show
+  // again" turns it off in settings.json (Settings → General brings it back).
+  let quietDismissed = $state(false);
+  $effect(() => {
+    if (!quiet) quietDismissed = false;
+  });
+  async function hideQuietReminder() {
+    const set = (on: boolean) => call('update_settings', { patch: { general: { quiet_reminder: on } } });
+    try {
+      await set(false);
+      toast('info', 'The Quiet reminder won’t show again. Settings → General brings it back.', {
+        ms: 7000,
+        action: { label: 'Undo', run: () => set(true) },
+      });
+    } catch (e) {
+      toast('error', errText(e));
+    }
+  }
 
   // ------------------------------------------------------------ status --
   let starting = $state(false);
@@ -112,6 +130,14 @@
     for (const k of keys) next[k] = joinedAt[k] ?? Date.now();
     if (Object.keys(next).length !== Object.keys(joinedAt).length || Object.keys(next).some((k) => !(k in joinedAt))) joinedAt = next;
   });
+  // "Snoozed · 52 min" or "Snoozed · this call" (rounded up; `now` ticks every 30 s).
+  function snoozeText(key: string): string | null {
+    const z = snap.snoozed.find((s) => s.key === key.toLowerCase());
+    if (!z) return null;
+    if (z.until === null) return 'Snoozed · this call';
+    if (z.until <= now) return null;
+    return `Snoozed · ${Math.ceil((z.until - now) / 60000)} min`;
+  }
   const since = (key: string) => {
     const t = joinedAt[key.toLowerCase()];
     if (!t) return null;
@@ -267,6 +293,7 @@
       items: [
         { label: 'Rename', icon: 'edit', run: () => (renaming = k) },
         { label: 'Sound…', icon: 'volume_up', run: () => (soundFor = t) },
+        ...snoozeItems(t),
         {
           label: t.username ? 'Copy username' : 'Copy user ID',
           icon: 'content_copy',
@@ -278,6 +305,26 @@
         { label: 'Remove', icon: 'delete', danger: true, run: () => remove(t) },
       ],
     };
+  }
+
+  // Snooze one person: no join or leave sound for an hour, or until you
+  // leave this call. Lives in memory only (quitting ends it).
+  function snoozeItems(t: Target): MenuItem[] {
+    const k = keyOf(t);
+    const run = (mode: 'hour' | 'call' | 'off', done: string) => async () => {
+      try {
+        await call('snooze', { key: k, mode });
+        toast('ok', done);
+      } catch (e) {
+        toast('error', errText(e));
+      }
+    };
+    if (snoozeText(k)) return [{ label: 'Stop snoozing', icon: 'notifications', run: run('off', `Stopped snoozing ${t.label}`) }];
+    const items: MenuItem[] = [{ label: 'Snooze for 1 hour', icon: 'snooze', run: run('hour', `Snoozed ${t.label} for 1 hour`) }];
+    if (snap.watching && snap.status === 'watching_channel') {
+      items.push({ label: 'Snooze for the rest of this call', icon: 'snooze', run: run('call', `Snoozed ${t.label} for the rest of this call`) });
+    }
+    return items;
   }
 
   async function remove(t: Target) {
@@ -447,9 +494,15 @@
         {#key status.sub}<p class="detail-in sub" in:swapIn>{status.sub}</p>{/key}
       </div>
     {/if}
-    {#if quiet}
+    {#if quiet && cfg.general.quiet_reminder && !quietDismissed}
       <div class="detail" in:unfold out:fold>
-        <div class="detail-in quiet">Quiet: no sound or overlay <Button kind="link" small onclick={() => call('toggle_quiet')}>Turn off</Button></div>
+        <div class="detail-in quiet">
+          <span class="quiet-text">Quiet: no sound or overlay</span>
+          <Button kind="link" small onclick={() => call('toggle_quiet')}>Turn off</Button>
+          <span aria-hidden="true">·</span>
+          <Button kind="link" small onclick={hideQuietReminder}>Don't show again</Button>
+          <span class="quiet-x"><IconButton icon="close" size={20} label="Dismiss" onclick={() => (quietDismissed = true)} /></span>
+        </div>
       </div>
     {/if}
   </header>
@@ -543,6 +596,8 @@
             joined={flashKey === k.toLowerCase()}
             active={activeRow === k}
             renaming={renaming === k}
+            tag={customTag(it.t, cfg)}
+            snooze={snoozeText(k)}
             onmenu={(x, y) => rowMenu(it.t, x, y)}
             onremove={() => remove(it.t)}
             onrename={(l) => rename(it.t, l)}
@@ -720,13 +775,23 @@
     color: var(--text-2);
     font-size: var(--fs-sm);
   }
+  /* Links carry their own padding, so the items sit close. */
   .quiet {
     display: flex;
     align-items: center;
-    gap: var(--sp-1);
+    gap: var(--sp-0);
     color: var(--text-3);
     font-size: var(--fs-sm);
     white-space: nowrap;
+  }
+  .quiet-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .quiet-x {
+    display: flex;
+    margin-left: auto;
   }
 
   /* --------------------------------------------------------- banners */
@@ -845,7 +910,8 @@
     gap: var(--sp-3);
     width: 100%;
     margin-block: calc(var(--sp-2) / 2);
-    padding: var(--row-y) var(--sp-3) var(--row-y) var(--row-y);
+    min-height: var(--row-h);
+    padding: var(--row-y) var(--sp-3) var(--row-y) calc((var(--row-h) - var(--avatar)) / 2);
     border: 0;
     border-radius: var(--r-md);
     background: var(--hover);

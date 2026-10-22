@@ -11,7 +11,7 @@ const qp = new URLSearchParams(location.search);
 const people: Target[] = [
   { label: 'Moderator', username: 'moderator' },
   { label: 'Maria', username: 'maria_k', sound: { beep: { frequency_hz: 1400, repeats: 2 } } },
-  { label: 'The Twins', id: '123456789012345678', sound: { beep: { frequency_hz: 650, duration_ms: 100 } } },
+  { label: 'The Twins', id: '123456789012345678', sound: { beep: { frequency_hz: 2000, duration_ms: 60, repeats: 5, volume: 0.9 } }, leave_sound: true },
   { label: 'pixel_fox', username: 'pixel_fox' },
   { label: 'zed_42', username: 'zed_42' },
   { label: 'night.owl', username: 'night.owl' },
@@ -42,6 +42,7 @@ const config: Config = {
     start_watching_on_launch: false, start_minimized: false, mask_usernames: qp.get('mask') === '1', quiet: qp.get('quiet') === '1',
     close_to_tray: true, launch_at_login: false, hide_dock_icon: false,
     setup_complete: qp.get('wizard') !== '1',
+    quiet_reminder: qp.get('reminder') !== 'off',
   },
   appearance: { theme: (qp.get('theme') as any) ?? 'onyx', density: (qp.get('density') as any) ?? 'compact' },
 };
@@ -54,9 +55,11 @@ const snap: Snapshot = {
   status: 'stopped',
   detail: '',
   members: [],
+  // ?snoozed=1: Sam for the next 52 minutes, pixel_fox for this call.
+  snoozed: qp.get('snoozed') === '1' ? [{ key: 'samwise', until: Date.now() + 52 * 60000 }, { key: 'pixel_fox', until: null }] : [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.0.7',
+  version: '2.0.8',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,
@@ -188,6 +191,23 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
       deepMerge(config, a.patch);
       changed();
       return;
+    case 'set_leave_sound': {
+      const i = find(a.key);
+      if (i >= 0) config.targets[i].leave_sound = a.on || undefined;
+      changed();
+      return;
+    }
+    case 'test_leave_sound':
+      return 0.09;
+    case 'snooze': {
+      const k = a.key.toLowerCase();
+      snap.snoozed = snap.snoozed.filter((s) => s.key !== k);
+      if (a.mode === 'call' && snap.status !== 'watching_channel') throw 'Join a voice channel first.';
+      if (a.mode === 'hour') snap.snoozed.push({ key: k, until: Date.now() + 3600000 });
+      if (a.mode === 'call') snap.snoozed.push({ key: k, until: null });
+      changed();
+      return;
+    }
     case 'toggle_quiet':
       config.general.quiet = !config.general.quiet;
       changed();
@@ -221,7 +241,7 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
       snap.stopping = true;
       changed();
       setTimeout(() => {
-        Object.assign(snap, { watching: false, stopping: false, status: 'stopped', detail: '', members: [] });
+        Object.assign(snap, { watching: false, stopping: false, status: 'stopped', detail: '', members: [], snoozed: snap.snoozed.filter((s) => s.until !== null) });
         changed();
       }, 300);
       return;

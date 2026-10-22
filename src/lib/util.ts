@@ -106,6 +106,16 @@ export function sameBeep(a: Omit<Beep, 'gap_ratio'>, b: Omit<Beep, 'gap_ratio'>)
   return a.frequency_hz === b.frequency_hz && a.duration_ms === b.duration_ms && a.repeats === b.repeats && a.volume === b.volume;
 }
 
+/** The tag on a person with their own sound: "Custom", or "Custom · Urgent"
+ *  when their beep is a ready-made one or one of your saved profiles. */
+export function customTag(t: Target, cfg: Config): string | null {
+  if (!t.sound) return null;
+  if (t.sound.file) return 'Custom';
+  const b = { ...cfg.beep, ...(t.sound.beep ?? {}) };
+  const named = BEEP_PRESETS.find((p) => sameBeep(p.beep, b)) ?? cfg.beep_profiles.find((p) => sameBeep(p.beep, b));
+  return named ? `Custom · ${named.name}` : 'Custom';
+}
+
 /** Saved profiles: the same limits as vc-core's config.rs. */
 export const MAX_PROFILES = 3;
 export const PROFILE_NAME_MAX = 12;

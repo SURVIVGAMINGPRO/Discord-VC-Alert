@@ -323,7 +323,7 @@ pub fn preview(p: &Parsed, cur: &Config) -> Preview {
         .iter()
         .map(|t| {
             let mine = cur.find(t.key());
-            let sound_differs = mine.is_some_and(|m| m.sound != t.sound);
+            let sound_differs = mine.is_some_and(|m| m.sound != t.sound || m.leave_sound != t.leave_sound);
             let status = match mine {
                 None => "new",
                 Some(m) if m.label == t.label && !sound_differs => "same",
@@ -433,6 +433,7 @@ pub fn apply(p: &Parsed, cur: &Config, o: &ApplyOptions, data_dir: &Path) -> Res
                 if wins(t) {
                     out[i].label = t.label.clone();
                     out[i].sound = store_sound(&t.sound)?;
+                    out[i].leave_sound = t.leave_sound;
                     updated += 1;
                 }
             } else {

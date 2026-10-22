@@ -34,6 +34,8 @@ export interface Target {
   id?: string;
   username?: string;
   sound?: SoundSpec;
+  /** v2: a softer sound when they leave your channel. */
+  leave_sound?: boolean;
 }
 
 export interface OverlaySettings {
@@ -60,6 +62,7 @@ export interface General {
   launch_at_login: boolean;
   hide_dock_icon: boolean;
   setup_complete: boolean;
+  quiet_reminder: boolean;
 }
 
 export interface Appearance {
@@ -110,6 +113,8 @@ export interface Snapshot {
   status: Status;
   detail: string;
   members: Member[];
+  /** Snoozed people: `until` is Unix ms, or null for "the rest of this call". */
+  snoozed: { key: string; until: number | null }[];
   activity: Activity[];
   platform: 'macos' | 'windows' | 'linux';
   version: string;

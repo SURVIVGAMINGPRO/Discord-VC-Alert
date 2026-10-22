@@ -119,6 +119,7 @@ struct TestHost {
     presence: Mutex<Vec<Vec<Member>>>,
     alerts: Mutex<Vec<String>>,
     plays: Mutex<Vec<String>>,
+    lefts: Mutex<Vec<String>>,
     present_alert: AtomicBool,
 }
 
@@ -133,6 +134,7 @@ impl Host for TestHost {
     fn presence(&self, m: Vec<Member>) { self.presence.lock().unwrap().push(m) }
     fn alert(&self, k: &str) { self.alerts.lock().unwrap().push(k.into()) }
     fn play(&self, k: &str) { self.plays.lock().unwrap().push(k.into()) }
+    fn left(&self, k: &str) { self.lefts.lock().unwrap().push(k.into()) }
     fn log(&self, _m: &str) {}
 }
 
@@ -223,17 +225,26 @@ async fn full_flow_join_leave_and_stop() {
     // Leaves keep join order for the rest.
     mock.dispatch("VOICE_STATE_DELETE", json!({"user": {"id": "10", "username": "moderator"}}));
     until("leave", || last_presence(&h) == vec!["maria_k", "123456789012345678", "late_one"]).await;
+    assert_eq!(h.lefts.lock().unwrap().as_slice(), ["moderator"], "a real leave is reported");
+    // Someone who isn't watched leaving is not.
+    mock.dispatch("VOICE_STATE_DELETE", json!({"user": {"id": "556", "username": "stranger"}}));
 
     // Quiet: alert still posted, no sound.
     h.quiet.store(true, Ordering::SeqCst);
     mock.dispatch("VOICE_STATE_CREATE", json!({"user": {"id": "10", "username": "moderator"}}));
     until("quiet alert", || h.alerts.lock().unwrap().len() == 5).await;
     assert_eq!(h.plays.lock().unwrap().len(), 4);
+    // Quiet: a leave is not reported for a sound either.
+    mock.dispatch("VOICE_STATE_DELETE", json!({"user": {"id": "11", "username": "late_one"}}));
+    until("quiet leave", || !last_presence(&h).contains(&"late_one".to_string())).await;
+    assert_eq!(h.lefts.lock().unwrap().len(), 1, "no leave sound in Quiet");
+    h.quiet.store(false, Ordering::SeqCst);
 
     // Moving to no channel clears presence.
     mock.dispatch("VOICE_CHANNEL_SELECT", json!({"channel_id": null}));
     until("idle", || h.statuses.lock().unwrap().iter().any(|s| s.0 == Status::IdleNoChannel)).await;
     assert!(last_presence(&h).is_empty());
+    assert_eq!(h.lefts.lock().unwrap().len(), 1, "switching channels yourself is not a leave");
 
     // PING answered with PONG; only read/subscribe commands were ever sent.
     let cmds = mock.cmds();

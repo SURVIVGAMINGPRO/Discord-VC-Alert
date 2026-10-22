@@ -292,6 +292,13 @@ pub struct Target {
     pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub sound: Option<SoundSpec>,
+    /// v2: play a softer sound when they leave your channel.
+    #[serde(skip_serializing_if = "is_false", default)]
+    pub leave_sound: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl Target {
@@ -302,7 +309,7 @@ impl Target {
             Ident::Id(s) => (Some(s), None),
             Ident::Username(s) => (None, Some(s)),
         };
-        Target { label, id, username, sound: None }
+        Target { label, id, username, sound: None, leave_sound: false }
     }
 
     /// v1 `target_key`: the numeric ID, else the username.
@@ -318,7 +325,7 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
     let mut skipped = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for item in items {
-        let (label, source, sound) = match item {
+        let (label, source, sound, leave_sound) = match item {
             Value::Object(m) => {
                 let label = match m.get("label") {
                     Some(Value::String(s)) => s.clone(),
@@ -331,9 +338,9 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
                     .find(|v| truthy(v))
                     .map(value_to_text)
                     .unwrap_or_default();
-                (label, source, clean_sound(m.get("sound")))
+                (label, source, clean_sound(m.get("sound")), matches!(m.get("leave_sound"), Some(Value::Bool(true))))
             }
-            other => (String::new(), value_to_text(other), None),
+            other => (String::new(), value_to_text(other), None, false),
         };
         let shown = if source.is_empty() { label.clone() } else { source.clone() };
         let ident = match parse_identifier(&source) {
@@ -349,6 +356,7 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
         }
         let mut t = Target::new(&label, ident);
         t.sound = sound;
+        t.leave_sound = leave_sound;
         out.push(t);
     }
     (out, skipped)
@@ -475,6 +483,8 @@ pub struct General {
     pub launch_at_login: bool,
     pub hide_dock_icon: bool,
     pub setup_complete: bool,
+    /// Show the "Quiet: no sound or overlay" line while Quiet is on.
+    pub quiet_reminder: bool,
 }
 
 impl Default for General {
@@ -488,6 +498,7 @@ impl Default for General {
             launch_at_login: false,
             hide_dock_icon: false,
             setup_complete: false,
+            quiet_reminder: true,
         }
     }
 }
@@ -508,6 +519,7 @@ pub fn clean_general(raw: Option<&Value>) -> General {
         launch_at_login: boolean(raw, "launch_at_login", d.launch_at_login),
         hide_dock_icon: boolean(raw, "hide_dock_icon", d.hide_dock_icon),
         setup_complete: boolean(raw, "setup_complete", d.setup_complete),
+        quiet_reminder: boolean(raw, "quiet_reminder", d.quiet_reminder),
     }
 }
 
@@ -837,5 +849,29 @@ mod tests {
     fn labels_cleaned() {
         assert_eq!(clean_label("  a\u{0007}b  "), "ab");
         assert_eq!(clean_label(&"x".repeat(100)).chars().count(), LABEL_MAX);
+    }
+
+    #[test]
+    fn leave_sound_round_trips_and_defaults_off() {
+        let (ts, _) = normalize_targets(&[
+            json!({"label": "A", "username": "aa", "leave_sound": true}),
+            json!({"label": "B", "username": "bb", "leave_sound": "yes"}),
+            json!({"label": "C", "username": "cc"}),
+        ]);
+        assert!(ts[0].leave_sound);
+        assert!(!ts[1].leave_sound, "only a real true switches it on");
+        assert!(!ts[2].leave_sound);
+        let v = serde_json::to_value(&ts).unwrap();
+        assert_eq!(v[0]["leave_sound"], json!(true));
+        assert!(v[2].get("leave_sound").is_none(), "off stays out of the file (v1 shape)");
+    }
+
+    #[test]
+    fn quiet_reminder_defaults_on_and_can_be_patched() {
+        let c = Config::default();
+        assert!(c.general.quiet_reminder);
+        let p = c.patched(&json!({"general": {"quiet_reminder": false}})).unwrap();
+        assert!(!p.general.quiet_reminder);
+        assert!(!p.general.quiet, "other general settings untouched");
     }
 }

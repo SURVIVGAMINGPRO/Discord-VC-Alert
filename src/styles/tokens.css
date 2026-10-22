@@ -101,7 +101,8 @@
 
   /* ------------------------------------------------------------- density */
   --row-y: 8px;
-  --avatar: 36px;
+  --row-h: 52px; /* a watch-list card */
+  --avatar: 30px;
 
   /* ----------------------------------------- letter avatars (v1 colours) */
   --id-0: #5865f2;
@@ -224,5 +225,6 @@
 
 [data-density='comfortable'] {
   --row-y: 12px;
-  --avatar: 40px;
+  --row-h: 64px;
+  --avatar: 34px;
 }

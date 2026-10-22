@@ -4,10 +4,10 @@
 
 use crate::secrets::Secrets;
 use serde::Serialize;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 use vc_core::avatars::{AvatarCache, UserRef};
@@ -32,6 +32,23 @@ pub struct Run {
     pub detail: String,
     pub members: Vec<Member>,
     pub stop: Option<CancellationToken>,
+    /// Snoozed people (lowercase key): no join or leave sound. In memory only.
+    pub snoozes: HashMap<String, Snooze>,
+}
+
+/// How long one person stays snoozed.
+#[derive(Clone)]
+pub enum Snooze {
+    Until(SystemTime),
+    /// Until you leave this channel (by name) or stop watching.
+    Call(String),
+}
+
+#[derive(Clone, Serialize)]
+pub struct Snoozed {
+    pub key: String,
+    /// When it ends, in Unix milliseconds; null means "the rest of this call".
+    pub until: Option<u64>,
 }
 
 pub struct Ui {
@@ -78,6 +95,7 @@ pub struct Snapshot {
     pub status: Status,
     pub detail: String,
     pub members: Vec<Member>,
+    pub snoozed: Vec<Snoozed>,
     pub activity: Vec<Activity>,
     pub platform: &'static str,
     pub version: &'static str,
@@ -122,6 +140,18 @@ impl AppState {
             status: run.status,
             detail: run.detail.clone(),
             members: if run.watching { run.members.clone() } else { Vec::new() },
+            snoozed: run
+                .snoozes
+                .iter()
+                .filter_map(|(key, z)| match z {
+                    Snooze::Until(t) => t
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .ok()
+                        .filter(|_| *t > SystemTime::now())
+                        .map(|d| Snoozed { key: key.clone(), until: Some(d.as_millis() as u64) }),
+                    Snooze::Call(_) => Some(Snoozed { key: key.clone(), until: None }),
+                })
+                .collect(),
             activity: ui.activity.iter().cloned().collect(),
             platform: PLATFORM,
             version: vc_core::APP_VERSION,
@@ -177,6 +207,20 @@ impl AppState {
 
     pub fn toast(&self, kind: &str, message: &str) {
         let _ = self.handle.emit_to("main", "toast", serde_json::json!({ "kind": kind, "message": message }));
+    }
+
+    /// Is this person snoozed right now? Drops a snooze that has run out.
+    pub fn snoozed(&self, key: &str) -> bool {
+        let k = key.to_lowercase();
+        let mut run = self.run.lock().unwrap();
+        match run.snoozes.get(&k) {
+            Some(Snooze::Until(t)) if *t <= SystemTime::now() => {
+                run.snoozes.remove(&k);
+                false
+            }
+            Some(_) => true,
+            None => false,
+        }
     }
 
     pub fn label_of(&self, key: &str) -> String {
@@ -264,6 +308,7 @@ impl AppState {
         run.stopping = false;
         run.members.clear();
         run.stop = None;
+        run.snoozes.retain(|_, z| !matches!(z, Snooze::Call(_)));
     }
 }
 
@@ -308,6 +353,12 @@ impl Host for Bridge {
         }
         {
             let mut run = s.run.lock().unwrap();
+            // "The rest of this call" ends when you leave that channel.
+            match status {
+                Status::WatchingChannel => run.snoozes.retain(|_, z| !matches!(z, Snooze::Call(c) if c != detail)),
+                Status::IdleNoChannel => run.snoozes.retain(|_, z| !matches!(z, Snooze::Call(_))),
+                _ => {}
+            }
             run.status = status;
             run.detail = detail.to_string();
         }
@@ -344,10 +395,24 @@ impl Host for Bridge {
     }
     fn play(&self, key: &str) {
         let s = &self.0;
+        if s.snoozed(key) {
+            return;
+        }
         let cfg = s.cfg();
         match s.bank.clip_for(&cfg, key) {
             Ok(c) => s.player.play(c),
             Err(e) => eprintln!("sound for {key}: {e}"),
+        }
+    }
+    fn left(&self, key: &str) {
+        let s = &self.0;
+        let cfg = s.cfg();
+        if !cfg.find(key).is_some_and(|t| t.leave_sound) || s.snoozed(key) {
+            return;
+        }
+        match s.bank.leave_clip_for(&cfg, key) {
+            Ok(c) => s.player.play(c),
+            Err(e) => eprintln!("leave sound for {key}: {e}"),
         }
     }
     fn log(&self, msg: &str) {

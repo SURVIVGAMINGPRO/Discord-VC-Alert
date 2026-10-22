@@ -104,6 +104,19 @@ pub fn merged_sound(cfg: &Config, spec: Option<&SoundSpec>) -> (String, Beep) {
     (file, beep)
 }
 
+/// The "they left" sound: one softer, lower beep made from their own beep
+/// (or the universal one), so it's recognisably theirs but never mistaken
+/// for a join.
+pub fn leave_beep(b: &Beep) -> Beep {
+    Beep {
+        frequency_hz: ((b.frequency_hz as f64 * 0.7).round() as i64).clamp(300, 2000),
+        duration_ms: b.duration_ms.clamp(80, 300),
+        repeats: 1,
+        gap_ratio: b.gap_ratio,
+        volume: (b.volume * 0.5).clamp(0.05, 1.0),
+    }
+}
+
 /// Resolve a stored sound path: `~` expanded, relative paths against `base`.
 pub fn resolve_path(file: &str, base: &Path) -> PathBuf {
     let p = if let Some(rest) = file.strip_prefix("~/").or_else(|| file.strip_prefix("~\\")) {
@@ -194,6 +207,14 @@ impl SoundBank {
             None => self.default_clip(cfg),
             Some(spec) => self.for_spec(cfg, Some(spec)).or_else(|_| self.default_clip(cfg)),
         }
+    }
+}
+
+impl SoundBank {
+    /// A person's leave sound (always a generated beep; see `leave_beep`).
+    pub fn leave_clip_for(&self, cfg: &Config, key: &str) -> Result<Arc<Clip>, String> {
+        let (_, beep) = merged_sound(cfg, cfg.find(key).and_then(|t| t.sound.as_ref()));
+        self.build("", &leave_beep(&beep))
     }
 }
 
@@ -339,10 +360,28 @@ mod tests {
             id: None,
             username: Some("xx".into()),
             sound: Some(SoundSpec { file: Some("gone.wav".into()), beep: None }),
+            leave_sound: true,
         });
         assert!(bank.for_spec(&cfg, cfg.targets[0].sound.as_ref()).is_err());
         let c = bank.clip_for(&cfg, "xx").unwrap();
         let expected = beep_samples(&Beep::default()).len() as f64 / RATE as f64;
         assert!((c.duration - expected).abs() < 0.001, "falls back to the universal beep");
+        // Their sound file is missing, but the leave sound is always a beep.
+        let l = bank.leave_clip_for(&cfg, "xx").unwrap();
+        let soft = beep_samples(&leave_beep(&Beep::default())).len() as f64 / RATE as f64;
+        assert!((l.duration - soft).abs() < 0.001);
+    }
+
+    #[test]
+    fn leave_beep_is_one_softer_lower_beep() {
+        let b = Beep::default();
+        let l = leave_beep(&b);
+        assert!(l.frequency_hz < b.frequency_hz);
+        assert!(l.volume < b.volume);
+        assert_eq!(l.repeats, 1);
+        let low = leave_beep(&Beep { frequency_hz: 300, volume: 0.05, duration_ms: 600, ..Beep::default() });
+        assert_eq!(low.frequency_hz, 300, "never below the slider minimum");
+        assert!(low.volume >= 0.05);
+        assert_eq!(low.duration_ms, 300);
     }
 }

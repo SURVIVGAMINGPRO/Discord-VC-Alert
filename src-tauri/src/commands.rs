@@ -7,7 +7,9 @@
 //! locks the app would freeze (the old Start/Stop spinner). Async also keeps
 //! keychain reads, which can show a macOS prompt, off the main thread.
 
-use crate::state::{state, Snapshot};
+use crate::state::{state, Snapshot, Snooze};
+use std::time::{Duration, SystemTime};
+use vc_core::discord::Status;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -121,6 +123,64 @@ pub async fn rename_target(app: AppHandle, key: String, label: String) -> R<()> 
 pub async fn set_person_sound(app: AppHandle, key: String, spec: Option<SoundSpec>) -> R<()> {
     let s = state(&app);
     s.store.lock().unwrap().set_sound(&key, spec)?;
+    s.changed();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_leave_sound(app: AppHandle, key: String, on: bool) -> R<()> {
+    let s = state(&app);
+    s.store.lock().unwrap().set_leave_sound(&key, on)?;
+    s.changed();
+    Ok(())
+}
+
+/// Play a person's leave sound (as saved). Returns its length in seconds.
+#[tauri::command]
+pub async fn test_leave_sound(app: AppHandle, key: String) -> R<f64> {
+    let s = state(&app);
+    let cfg = s.cfg();
+    let clip = s.bank.leave_clip_for(&cfg, &key)?;
+    let d = clip.duration;
+    s.player.play(clip);
+    Ok(d)
+}
+
+/// Mute one person's join and leave sounds: `mode` is "hour", "call" (until
+/// you leave this channel or stop watching) or "off". Kept in memory only, so
+/// quitting VC Alert ends every snooze.
+#[tauri::command]
+pub async fn snooze(app: AppHandle, key: String, mode: String) -> R<()> {
+    let s = state(&app);
+    let k = key.to_lowercase();
+    {
+        let mut run = s.run.lock().unwrap();
+        match mode.as_str() {
+            "hour" => {
+                run.snoozes.insert(k.clone(), Snooze::Until(SystemTime::now() + Duration::from_secs(3600)));
+            }
+            "call" => {
+                if !(run.watching && run.status == Status::WatchingChannel) {
+                    return Err("Join a voice channel first.".into());
+                }
+                let channel = run.detail.clone();
+                run.snoozes.insert(k.clone(), Snooze::Call(channel));
+            }
+            "off" => {
+                run.snoozes.remove(&k);
+            }
+            _ => return Err(format!("unknown snooze: {mode}")),
+        }
+    }
+    if mode == "hour" {
+        // Refresh every window when it runs out, so the "Snoozed" tag goes.
+        let s2 = s.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3601)).await;
+            s2.snoozed(&k);
+            s2.changed();
+        });
+    }
     s.changed();
     Ok(())
 }

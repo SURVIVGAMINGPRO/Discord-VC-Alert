@@ -2,9 +2,10 @@
   // One person on the watch list, as a card (layout from the early mockup).
   // The line under the name shows who they are (@username or ID, unless the
   // label already is the username) and, while they're in your channel, how
-  // long ago they joined. Right side: a "Custom" tag for their own sound, and
-  // a round More button (Rename, Sound…, Copy, Remove) that takes its place on
-  // hover or focus.
+  // long ago they joined. Right side: "Snoozed · 52 min" while snoozed, else
+  // "Custom" (or "Custom · Urgent") for their own sound, and a round More
+  // button (Rename, Sound…, Snooze, Copy, Remove) that takes its place on hover
+  // or focus.
   import Avatar from '../components/Avatar.svelte';
   import IconButton from '../components/IconButton.svelte';
   import type { Target } from '../lib/types';
@@ -19,6 +20,8 @@
     joined,
     active,
     renaming,
+    tag,
+    snooze,
     onmenu,
     onremove,
     onrename,
@@ -33,6 +36,8 @@
     joined: boolean;
     active: boolean;
     renaming: boolean;
+    tag: string | null;
+    snooze: string | null;
     onmenu: (x: number, y: number) => void;
     onremove: () => void;
     onrename: (label: string | null) => void;
@@ -52,6 +57,7 @@
     return '@' + (masked ? mask(t.username ?? '') : (t.username ?? ''));
   });
   const ownSound = $derived(!!t.sound);
+  const shownTag = $derived(snooze ?? tag);
 
   let row: HTMLDivElement | undefined = $state();
   let more: HTMLElement | undefined = $state();
@@ -122,7 +128,7 @@
   class:present
   class:own={ownSound}
   role="listitem"
-  aria-label="{t.label}{ident ? `, ${ident}` : ''}{present ? ', in your channel' : ''}{ownSound ? ', has its own sound' : ''}"
+  aria-label="{t.label}{ident ? `, ${ident}` : ''}{present ? ', in your channel' : ''}{ownSound ? ', has its own sound' : ''}{snooze ? ', snoozed' : ''}"
   tabindex={active ? 0 : -1}
   onfocus={onfocusrow}
   onkeydown={key_}
@@ -131,7 +137,7 @@
     onmenu(e.clientX, e.clientY);
   }}
 >
-  <Avatar {key} label={t.label} size="var(--avatar)" {src} {present} />
+  <Avatar {key} label={t.label} size="var(--avatar)" {src} {present} hint="Their picture appears after their first call with you" />
   <div class="who">
     {#if renaming}
       <!-- svelte-ignore a11y_autofocus -->
@@ -161,7 +167,7 @@
     {/if}
   </div>
   <div class="side">
-    {#if ownSound}<span class="tag" title="Has their own sound">Custom</span>{/if}
+    {#if shownTag}<span class="tag" class:quiet={!!snooze} title={snooze ? 'No join or leave sound for them' : 'Has their own sound'}>{shownTag}</span>{/if}
     <span class="acts" bind:this={more}>
       <IconButton round flat={false} size={28} icon="more_horiz" label="More for {t.label}" tabindex={-1} onclick={openFromButton} />
     </span>
@@ -174,10 +180,10 @@
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    min-height: calc(var(--avatar) + 2 * var(--row-y));
-    /* The avatar has the same space above, below and to its left; the text
-       stays within the avatar's height so the card never grows past it. */
-    padding: var(--row-y) var(--sp-3) var(--row-y) var(--row-y);
+    min-height: var(--row-h);
+    /* The picture is centred in the card's height and has the same space to
+       its left as above and below it. */
+    padding: var(--row-y) var(--sp-3) var(--row-y) calc((var(--row-h) - var(--avatar)) / 2);
     border-radius: var(--r-md);
     background: var(--surface);
     box-shadow: inset 0 0 0 1px var(--line);
@@ -235,6 +241,8 @@
     white-space: nowrap;
     font-size: var(--fs-sm);
     line-height: var(--lh-tight);
+    /* Two fonts on one line (mono username, sans "joined…") mustn't make it taller. */
+    height: calc(var(--fs-sm) * var(--lh-tight));
   }
   .ident {
     flex: 0 1 auto;
@@ -287,6 +295,10 @@
     font-size: var(--fs-sm);
     font-weight: var(--fw-medium);
     line-height: var(--lh-tight);
+  }
+  .tag.quiet {
+    background: var(--hover);
+    color: var(--text-2);
   }
   .acts {
     display: flex;

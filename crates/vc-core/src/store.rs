@@ -123,6 +123,12 @@ impl Store {
         self.save()
     }
 
+    pub fn set_leave_sound(&mut self, key: &str, on: bool) -> Result<(), String> {
+        let Some(i) = self.cfg.position(key) else { return Ok(()) };
+        self.cfg.targets[i].leave_sound = on;
+        self.save()
+    }
+
     pub fn patch(&mut self, patch: &Value) -> Result<(), String> {
         let next = self.cfg.patched(patch)?;
         self.cfg = next;

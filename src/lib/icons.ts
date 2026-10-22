@@ -24,6 +24,7 @@ import person_add from '@material-symbols/svg-400/outlined/person_add.svg?raw';
 import play_arrow from '@material-symbols/svg-400/outlined/play_arrow.svg?raw';
 import search from '@material-symbols/svg-400/outlined/search.svg?raw';
 import settings from '@material-symbols/svg-400/outlined/settings.svg?raw';
+import snooze from '@material-symbols/svg-400/outlined/snooze.svg?raw';
 import settings_backup_restore from '@material-symbols/svg-400/outlined/settings_backup_restore.svg?raw';
 import upload from '@material-symbols/svg-400/outlined/upload.svg?raw';
 import visibility from '@material-symbols/svg-400/outlined/visibility.svg?raw';
@@ -35,7 +36,7 @@ import radio_button_checked from '@material-symbols/svg-400/outlined/radio_butto
 export const ICONS = {
   add, arrow_back, check, close, content_copy, delete: del, download, edit, folder_open, graphic_eq,
   history, info, keyboard_arrow_down, link, mic, more_horiz, notifications, notifications_off, content_paste, file_open, open_in_new, person_add,
-  play_arrow, search, settings, settings_backup_restore, upload, visibility, visibility_off, volume_up,
+  play_arrow, search, settings, settings_backup_restore, snooze, upload, visibility, visibility_off, volume_up,
   warning, radio_button_checked,
 };
 

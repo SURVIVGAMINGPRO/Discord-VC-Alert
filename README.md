@@ -10,11 +10,11 @@ What's new in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## Install
 
-- **macOS:** open `VC Alert_2.0.7_universal.dmg` and drag VC Alert to
+- **macOS:** open `VC Alert_2.0.8_universal.dmg` and drag VC Alert to
   Applications. The app isn't signed with an Apple Developer ID yet, so the
   first time macOS blocks it: open **System Settings → Privacy & Security**,
   scroll down and choose **Open Anyway**.
-- **Windows:** run `VC Alert_2.0.7_x64-setup.exe` (no admin needed), or use the
+- **Windows:** run `VC Alert_2.0.8_x64-setup.exe` (no admin needed), or use the
   portable `vc-alert.exe`. Windows may show "Windows protected your PC": choose
   **More info → Run anyway**. Put an empty file named `portable` next to the
   portable .exe to keep its settings beside it.
@@ -50,9 +50,16 @@ minutes, once.
 - **Own sound:** open a person's ⋯ menu (or right-click them, or press Enter
   on them) and choose **Sound…** to give them their own beep or sound file.
   The same menu has Rename, Copy username and Remove. People with their own
-  sound show a **Custom** tag. Delete removes the selected person, with Undo.
+  sound show a **Custom** tag (**Custom · Urgent** when it's a ready-made beep
+  or one of your profiles). Delete removes the selected person, with Undo.
+- **Leave sound:** in a person's **Sound…**, switch on **Soft sound when they
+  leave** for one lower, quieter beep when they leave your channel.
+- **Snooze:** someone keeps dropping and rejoining? Their ⋯ menu has **Snooze
+  for 1 hour** and **Snooze for the rest of this call**: no join or leave
+  sound for them until then. Snoozes end when you quit VC Alert.
 - **Quiet:** the bell button turns off sound and the overlay; the list still
-  shows who joins.
+  shows who joins. The reminder line under the status has × (hide it until
+  next time) and **Don't show again** (bring it back in **Settings → General**).
 - **Overlay:** **Settings → Overlay** sets the style (pictures, a count, or
   dots), size, and layout. **Position…** lets you drag it anywhere. It never
   takes focus, clicks go straight through it, and it can be hidden from screen

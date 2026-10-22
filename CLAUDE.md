@@ -35,7 +35,8 @@ Every fix bumps the patch number: 2.0.1 was the Start/Stop freeze fix, 2.0.2
 the "first launch looks like a crash" fix, 2.0.3 the one-row header and real
 profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress bar instead of a
 scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
-and no Space switching on macOS, and so on (2.0.x). Change it in
+and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
+options and 30 px pictures, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`
 and the README's download names), and add an entry at the top of
@@ -86,7 +87,7 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (44 at the time of writing)
+cargo test -p vc-core             # engine tests (47 at the time of writing)
 cargo test -p vc-core --test avatars_live -- --ignored   # real CDN download (network)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
@@ -114,7 +115,9 @@ Ported from v1 and covered by tests; keep them green.
 - The watcher: handshake → token (saved → refresh → AUTHORIZE popup + code
   exchange) → subscribe to channel changes → follow the selected channel →
   presence in join order, alert with per-person cooldown, Quiet suppresses
-  sound only. Reconnect every 5 s. Stop is a cancellation token and takes
+  sound only. `Host::left(key)` fires when a watched person leaves your channel
+  (never for your own channel switches, never in Quiet); the shell plays their
+  leave sound (`sound::leave_beep`: one lower, quieter beep) if `leave_sound`. Reconnect every 5 s. Stop is a cancellation token and takes
   effect immediately on every platform (v1 couldn't on Windows).
 - **v1 bug fixed:** v1 stayed on "connecting" if you weren't in a voice
   channel when pressing Start; v2 reports `idle_no_channel`.
@@ -130,7 +133,9 @@ Ported from v1 and covered by tests; keep them green.
 - `settings.json` is v1's `config.json` shape **minus secrets**, plus
   `"vc_alert": {"version": 2}`, `overlay.style|display|hide_from_capture`,
   `general.close_to_tray|launch_at_login|hide_dock_icon|setup_complete`,
-  `appearance.theme|density` and `beep_profiles`. v1 ignores the extra keys. A broken file is
+  `appearance.theme|density`, `general.quiet_reminder`, per-person
+  `leave_sound` (only written when true) and `beep_profiles`. v1 ignores the
+  extra keys. A broken file is
   moved aside (`settings.broken-<time>.json`), never overwritten.
 - Secrets: one keychain item (service "VC Alert", account "discord") holding
   `{client_secret, token}`, so macOS asks at most once. Falls back to
@@ -183,6 +188,11 @@ are created from async contexts (creating them from sync commands or event
 handlers deadlocks on Windows). The display list is cached and refreshed in
 `get_state` only.
 
+**Snooze:** `snooze(key, mode)` with "hour" | "call" | "off". Snoozes live in
+`Run.snoozes` (memory only) and silence that person's join and leave sounds;
+"call" ends when you leave that channel (by name) or stop watching. The
+Snapshot lists them as `snoozed: [{key, until}]` (`until` null = this call).
+
 **Spaces (macOS):** the main and Settings windows use
 `platform::follow_active_space` (MoveToActiveSpace), so opening VC Alert from
 the Dock or menu bar brings the window to the current Space instead of
@@ -218,10 +228,12 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   line below. Only the channel name truncates (full name in the tooltip).
 - The list (layout from the same mockup): headings "In your channel · 2";
   each person is a card (surface, hairline edge, 8 px apart, no dividers):
-  `--avatar` picture with equal space above, below and to its left (padding
-  `--row-y`; the text stays within the avatar's height), name, then
+  `--avatar` picture (30 px; 34 comfortable) centred in a `--row-h` card
+  with the same space to its left as above and below, name, then
   @username/ID and, while in the channel, "joined
-  2 min ago" in green. Right side: a "Custom" tag for their own sound; on hover
+  2 min ago" in green. Letters (no picture yet) have the tooltip "Their
+  picture appears after their first call with you". Right side: "Snoozed ·
+  52 min", else "Custom" or "Custom · Urgent" (preset or profile name); on hover
   or focus a round More (⋯) button takes its place (the tag hides at once).
   Sound… lives in that menu. The list has no scrollbar (it made the right-hand
   gap uneven): a 2 px blurple bar on the footer's top line fills left to right
@@ -259,7 +271,8 @@ takes URL params:
 `theme=onyx|graphite|paper|system`, `density=comfortable`, overlay
 `style=pictures|count|dots`, `px=8..48`, `n=…`, `join=0`,
 `bg=bright|dark|busy`, `overlay=off`, `pics=1` (stand-in pictures for
-everyone but the last person). Check 380 × 520 (the minimum window
+everyone but the last person), `snoozed=1` (Sam for 52 min, pixel_fox for
+this call), `reminder=off` (Quiet reminder switched off). Check 380 × 520 (the minimum window
 size), both Ink and Paper, Tab order, and mid-animation frames.
 Then run the detector:
 `~/.claude/plugins/cache/impeccable/impeccable/4.7.0/skills/impeccable/scripts/impeccable detect --json src design/preview.html`

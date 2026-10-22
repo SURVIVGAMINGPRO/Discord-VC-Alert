@@ -245,6 +245,9 @@ pub trait Host: Send + Sync + 'static {
     fn alert(&self, key: &str);
     /// Play this person's sound (not called in Quiet mode).
     fn play(&self, key: &str);
+    /// A watched person left your channel (not called in Quiet mode, nor
+    /// when you switch channels yourself).
+    fn left(&self, _key: &str) {}
     fn log(&self, msg: &str);
 }
 
@@ -541,6 +544,9 @@ impl<'a> Session<'a> {
                     self.state.present.retain(|p| p.key != hit);
                     if self.state.present.len() != before {
                         self.publish();
+                        if !self.host.quiet() {
+                            self.host.left(&hit);
+                        }
                     }
                 }
             }

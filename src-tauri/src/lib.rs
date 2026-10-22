@@ -115,6 +115,7 @@ pub fn run() {
                     detail: String::new(),
                     members: Vec::new(),
                     stop: None,
+                    snoozes: std::collections::HashMap::new(),
                 }),
                 ui: Mutex::new(Ui {
                     overlay_preview: false,
@@ -226,6 +227,9 @@ pub fn run() {
             commands::undo_remove,
             commands::rename_target,
             commands::set_person_sound,
+            commands::set_leave_sound,
+            commands::test_leave_sound,
+            commands::snooze,
             commands::update_settings,
             commands::toggle_quiet,
             commands::complete_setup,

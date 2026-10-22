@@ -7,6 +7,29 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.0.8 (2026-10-22)
+
+### Added
+- **Snooze one person.** Their ⋯ menu has **Snooze for 1 hour** and **Snooze
+  for the rest of this call**, for people who keep dropping and rejoining: no
+  join or leave sound for them until it runs out. The card shows
+  "Snoozed · 52 min". Snoozes end when you quit VC Alert.
+- **A soft "left" sound**, switched on per person in their **Sound…** sheet:
+  one lower, quieter beep made from their sound when they leave your channel.
+  It never plays when you switch channels yourself, in Quiet mode, or while
+  they're snoozed.
+- The Quiet reminder ("Quiet: no sound or overlay") has × to hide it until
+  you next turn Quiet on, and **Don't show again**, which is saved.
+  **Settings → General → Show a reminder when Quiet is on** brings it back.
+
+### Changed
+- Smaller pictures in the watch list (30 px, 34 px in the roomier density),
+  with the same space above, below and to the left of each one.
+- The tag on someone with their own sound names the beep when it's a
+  ready-made one or one of your profiles: "Custom · Urgent".
+- A letter instead of a picture explains itself: hover it for "Their picture
+  appears after their first call with you".
+
 ## 2.0.7 (2026-10-22)
 
 ### Changed
