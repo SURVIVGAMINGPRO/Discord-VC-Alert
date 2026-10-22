@@ -37,7 +37,9 @@ profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress 
 scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
 and no Space switching on macOS, and so on (2.0.x). Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
-`src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`).
+`src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`
+and the README's download names), and add an entry at the top of
+`CHANGELOG.md` in plain, user-facing words.
 
 ## 2. Layout
 

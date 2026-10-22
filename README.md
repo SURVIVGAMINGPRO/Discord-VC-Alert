@@ -6,6 +6,8 @@ choose join the Discord voice channel you're in.
 It talks only to the Discord app on your own computer. No bot, no account
 token, nothing posted anywhere, and nobody else can see it.
 
+What's new in each version: [CHANGELOG.md](CHANGELOG.md).
+
 ## Install
 
 - **macOS:** open `VC Alert_2.0.7_universal.dmg` and drag VC Alert to
