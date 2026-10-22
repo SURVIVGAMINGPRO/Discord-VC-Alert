@@ -131,6 +131,7 @@ pub fn run() {
                 }),
                 data_dir: dir,
                 displays: Mutex::new(Vec::new()),
+                wake: Arc::new(tokio::sync::Notify::new()),
             });
             app.manage(st.clone());
             let cfg = st.cfg();
@@ -227,7 +228,11 @@ pub fn run() {
             commands::undo_remove,
             commands::rename_target,
             commands::set_person_sound,
-            commands::set_leave_sound,
+            commands::set_leave,
+            commands::list_add,
+            commands::list_rename,
+            commands::list_delete,
+            commands::list_switch,
             commands::test_leave_sound,
             commands::snooze,
             commands::update_settings,

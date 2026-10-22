@@ -16,10 +16,12 @@
   import ImportSheet from '../sheets/ImportSheet.svelte';
   import PasteList from '../sheets/PasteList.svelte';
   import Wizard from '../sheets/Wizard.svelte';
+  import ListName from '../sheets/ListName.svelte';
+  import AlertDialog from '../components/AlertDialog.svelte';
   import { app, avatars, loadAvatars, toast, watchAvatars } from '../lib/app.svelte';
   import { call, errText, on, onFileDrop, pickFile } from '../lib/api';
   import { flipParams, glide, ms, rise, shake, shrink, swapIn, unfold, fold } from '../lib/motion';
-  import { ago, customTag, describeBeep, baseName, keyOf, lockMs, matchesQuery, parseIdent, sortTargets } from '../lib/util';
+  import { ago, customTag, describeBeep, baseName, keyOf, lockMs, matchesQuery, MAX_LISTS, parseIdent, sortTargets } from '../lib/util';
   import type { Target } from '../lib/types';
 
   const snap = $derived(app.snap!);
@@ -289,6 +291,62 @@
     rows[key]?.focus();
   }
 
+  // ---------------------------------------------------------------- lists --
+  // Up to 5 named lists; the active one is watched. Each keeps its own people
+  // and their sounds.
+  let picker: HTMLButtonElement | undefined = $state();
+  let naming = $state<{ index: number | null; current: string } | null>(null);
+  let deleting = $state<{ index: number; name: string; count: number } | null>(null);
+  const listName = $derived(cfg.lists[cfg.active_list]?.name ?? '');
+  const listCount = (i: number) => (i === cfg.active_list ? cfg.targets.length : (cfg.lists[i]?.targets.length ?? 0));
+  const people = (k: number) => (k === 1 ? '1 person' : `${k} people`);
+
+  function listMenu() {
+    const r = picker!.getBoundingClientRect();
+    const items: MenuItem[] = cfg.lists.map((l, i) => ({
+      label: `${l.name} · ${listCount(i)}`,
+      checked: i === cfg.active_list,
+      run: async () => {
+        if (i === cfg.active_list) return;
+        try {
+          await call('list_switch', { index: i });
+          announce = `Watching the list ${l.name}`;
+        } catch (e) {
+          toast('error', errText(e));
+        }
+      },
+    }));
+    items.push({
+      label: 'New list…',
+      icon: 'add',
+      run: () =>
+        cfg.lists.length >= MAX_LISTS
+          ? toast('info', `You can have ${MAX_LISTS} lists. Delete one first.`)
+          : (naming = { index: null, current: '' }),
+    });
+    items.push({ label: `Rename “${listName}”…`, icon: 'edit', run: () => (naming = { index: cfg.active_list, current: listName }) });
+    if (cfg.lists.length > 1) {
+      items.push({
+        label: `Delete “${listName}”…`,
+        icon: 'delete',
+        danger: true,
+        run: () => (deleting = { index: cfg.active_list, name: listName, count: cfg.targets.length }),
+      });
+    }
+    menu = { x: r.left, y: r.bottom + 4, items, label: 'Lists' };
+  }
+
+  async function deleteList() {
+    const d = deleting!;
+    deleting = null;
+    try {
+      await call('list_delete', { index: d.index });
+      toast('info', `Deleted list “${d.name}”`);
+    } catch (e) {
+      toast('error', errText(e));
+    }
+  }
+
   // --------------------------------------------------------- row actions --
   let menu = $state<{ x: number; y: number; items: MenuItem[]; label: string } | null>(null);
   let renaming = $state<string | null>(null);
@@ -537,6 +595,23 @@
     </div>
   {/if}
 
+  <div class="listbar">
+    <Logo size={22} />
+    <button
+      type="button"
+      class="picker"
+      bind:this={picker}
+      aria-haspopup="menu"
+      aria-label="List: {listName}. Change list"
+      title="Your lists"
+      onclick={listMenu}
+    >
+      <span class="picker-name">{listName}</span>
+      <Icon name="keyboard_arrow_down" size={16} />
+    </button>
+    <span class="listbar-count">{people(n)}</span>
+  </div>
+
   <div class="search">
     <div class="field" bind:this={searchBox}>
       <TextField
@@ -654,6 +729,20 @@
   </footer>
 
   <div class="sr-only" role="status" aria-live="polite">{announce}</div>
+
+  {#if naming}
+    <ListName index={naming.index} current={naming.current} onclose={() => (naming = null)} />
+  {/if}
+  {#if deleting}
+    <AlertDialog
+      title="Delete “{deleting.name}”?"
+      description="{deleting.count ? `Its ${people(deleting.count)} and their sounds are deleted too.` : 'It has nobody on it yet.'} This can't be undone."
+      confirm="Delete list"
+      danger
+      onconfirm={deleteList}
+      oncancel={() => (deleting = null)}
+    />
+  {/if}
 
   {#if splash}
     <div class="splash" aria-hidden="true">
@@ -840,11 +929,61 @@
   }
 
   /* ---------------------------------------------------------- search */
+  /* ------------------------------------------------------- list bar */
+  .listbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4) 0;
+  }
+  .picker {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    min-width: 0;
+    height: var(--h-sm);
+    padding: 0 var(--sp-1) 0 var(--sp-2);
+    border: 0;
+    border-radius: var(--r-sm);
+    background: none;
+    color: var(--text);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-medium);
+    transition:
+      background-color var(--t-fade) var(--ease-color),
+      transform var(--spring-press-dur) var(--spring-press-ease);
+  }
+  .picker:hover {
+    background: var(--hover);
+  }
+  .picker:active {
+    transform: scale(var(--press-scale));
+  }
+  .picker :global(.icon) {
+    color: var(--text-3);
+  }
+  .picker-name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .listbar-count {
+    margin-left: auto;
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .picker:active {
+      transform: none;
+    }
+  }
+
   .search {
     display: flex;
     align-items: center;
     gap: var(--sp-1);
-    padding: var(--sp-3) var(--sp-4) var(--sp-1);
+    padding: var(--sp-2) var(--sp-4) var(--sp-1);
   }
   .field {
     flex: 1;

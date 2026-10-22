@@ -77,6 +77,9 @@ pub struct AppState {
     /// The display list for the overlay picker. Refreshed when the UI asks for
     /// state, not on every change (each read is a main-thread round trip).
     pub displays: Mutex<Vec<DisplayInfo>>,
+    /// Tells the watcher the people changed (another list, an add, a removal),
+    /// so it re-reads who's in your call.
+    pub wake: Arc<tokio::sync::Notify>,
 }
 
 #[derive(Clone, Serialize)]
@@ -199,6 +202,11 @@ impl AppState {
     }
 
     /// Tell every window (and the tray and overlay) that something changed.
+    /// The watched people changed: re-read who's in the call (quietly).
+    pub fn targets_changed(&self) {
+        self.wake.notify_one();
+    }
+
     pub fn changed(&self) {
         let _ = self.handle.emit("state", self.snapshot());
         crate::tray::refresh(&self.handle);
@@ -404,10 +412,13 @@ impl Host for Bridge {
             Err(e) => eprintln!("sound for {key}: {e}"),
         }
     }
+    fn wake(&self) -> Option<Arc<tokio::sync::Notify>> {
+        Some(self.0.wake.clone())
+    }
     fn left(&self, key: &str) {
         let s = &self.0;
         let cfg = s.cfg();
-        if !cfg.find(key).is_some_and(|t| t.leave_sound) || s.snoozed(key) {
+        if !cfg.general.leave_sounds || !cfg.find(key).is_some_and(|t| t.leave_sound) || s.snoozed(key) {
             return;
         }
         match s.bank.leave_clip_for(&cfg, key) {

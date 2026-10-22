@@ -19,6 +19,8 @@ struct MockState {
     received: Vec<(String, Option<String>, Value)>,
     valid_tokens: HashSet<String>,
     channel: Value,
+    /// Act like a group call where Discord refuses voice-state events.
+    refuse_voice: bool,
 }
 
 struct Mock {
@@ -83,6 +85,13 @@ impl Mock {
                                     "GET_SELECTED_VOICE_CHANNEL" => {
                                         json!({"cmd": cmd, "nonce": nonce, "data": st.lock().unwrap().channel.clone()})
                                     }
+                                    "SUBSCRIBE"
+                                        if st.lock().unwrap().refuse_voice
+                                            && evt.as_deref().is_some_and(|e| e.starts_with("VOICE_STATE")) =>
+                                    {
+                                        json!({"cmd": cmd, "nonce": nonce, "evt": "ERROR",
+                                               "data": {"code": 4000, "message": "Invalid channel"}})
+                                    }
                                     _ => json!({"cmd": cmd, "nonce": nonce, "evt": evt, "data": {"evt": evt}}),
                                 };
                                 let _ = tx.send((OP_FRAME, reply));
@@ -121,6 +130,7 @@ struct TestHost {
     plays: Mutex<Vec<String>>,
     lefts: Mutex<Vec<String>>,
     present_alert: AtomicBool,
+    wake: Arc<tokio::sync::Notify>,
 }
 
 impl Host for TestHost {
@@ -135,6 +145,7 @@ impl Host for TestHost {
     fn alert(&self, k: &str) { self.alerts.lock().unwrap().push(k.into()) }
     fn play(&self, k: &str) { self.plays.lock().unwrap().push(k.into()) }
     fn left(&self, k: &str) { self.lefts.lock().unwrap().push(k.into()) }
+    fn wake(&self) -> Option<Arc<tokio::sync::Notify>> { Some(self.wake.clone()) }
     fn log(&self, _m: &str) {}
 }
 
@@ -187,7 +198,7 @@ fn last_presence(h: &TestHost) -> Vec<String> {
 
 #[tokio::test]
 async fn full_flow_join_leave_and_stop() {
-    let channel = json!({"id": "c1", "name": "General", "voice_states": [
+    let channel = json!({"id": "c1", "name": "General", "guild_id": "g1", "voice_states": [
         {"user": {"id": "555", "username": "Maria_K", "avatar": "abc"}},
         {"user": {"id": "556", "username": "stranger"}}
     ]});
@@ -305,7 +316,7 @@ async fn token_for_other_app_is_ignored() {
 
 #[tokio::test]
 async fn already_present_alert_can_be_off_and_cooldown_applies() {
-    let channel = json!({"id": "c1", "name": "x", "voice_states": [{"user": {"id": "5", "username": "maria_k"}}]});
+    let channel = json!({"id": "c1", "name": "x", "guild_id": "g1", "voice_states": [{"user": {"id": "5", "username": "maria_k"}}]});
     let mock = Mock::start(channel, &["tok-1"]).await;
     let h = host(&["maria_k"]);
     h.present_alert.store(false, Ordering::SeqCst);
@@ -349,4 +360,76 @@ async fn test_connection_reports_username() {
     let dynh: Arc<dyn Host> = h.clone();
     let name = test_connection(dynh, creds(), token_fn(Arc::new(Mutex::new(vec![]))), Some(mock.path.clone())).await.unwrap();
     assert_eq!(name, "me");
+}
+
+#[tokio::test]
+async fn group_calls_are_polled_when_discord_sends_no_voice_events() {
+    let channel = json!({"id": "dm1", "name": null, "type": 3, "guild_id": null, "voice_states": [
+        {"user": {"id": "555", "username": "maria_k"}}
+    ]});
+    let mock = Mock::start(channel, &["tok-1"]).await;
+    mock.state.lock().unwrap().refuse_voice = true;
+    let h = host(&["maria_k", "moderator"]);
+    let stop = CancellationToken::new();
+    let dynh: Arc<dyn Host> = h.clone();
+    let task = tokio::spawn(run_forever(dynh, creds(), token_fn(Arc::default()), stop.clone(), Some(mock.path.clone())));
+    let long = |what: &'static str, f: Box<dyn Fn() -> bool + Send>| async move {
+        for _ in 0..600 {
+            if f() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for {what}");
+    };
+
+    until("already-present alert", || h.alerts.lock().unwrap().len() == 1).await;
+    assert!(h.statuses.lock().unwrap().contains(&(Status::WatchingChannel, "Group call".into())), "a refused subscription is not an error");
+    assert!(!h.statuses.lock().unwrap().iter().any(|s| s.0 == Status::Reconnecting));
+
+    // Someone joins: no event, only the call's voice states change.
+    mock.state.lock().unwrap().channel["voice_states"].as_array_mut().unwrap().push(json!({"user": {"id": "10", "username": "moderator"}}));
+    let h2 = h.clone();
+    long("polled join", Box::new(move || last_presence(&h2) == vec!["maria_k", "moderator"])).await;
+    assert_eq!(h.alerts.lock().unwrap().as_slice(), ["maria_k", "moderator"]);
+
+    // Someone leaves.
+    mock.state.lock().unwrap().channel["voice_states"].as_array_mut().unwrap().retain(|v| v["user"]["username"] != "maria_k");
+    let h3 = h.clone();
+    long("polled leave", Box::new(move || last_presence(&h3) == vec!["moderator"])).await;
+    assert_eq!(h.lefts.lock().unwrap().as_slice(), ["maria_k"]);
+
+    stop.cancel();
+    tokio::time::timeout(Duration::from_secs(2), task).await.expect("stops at once").unwrap();
+    let allowed = ["AUTHORIZE", "AUTHENTICATE", "SUBSCRIBE", "UNSUBSCRIBE", "GET_SELECTED_VOICE_CHANNEL", "PONG"];
+    assert!(mock.cmds().iter().all(|c| allowed.contains(&c.as_str())), "read-only: {:?}", mock.cmds());
+}
+
+#[tokio::test]
+async fn changing_the_list_rereads_the_call_quietly() {
+    let channel = json!({"id": "c1", "name": "General", "guild_id": "g1", "voice_states": [
+        {"user": {"id": "555", "username": "maria_k"}},
+        {"user": {"id": "10", "username": "moderator"}}
+    ]});
+    let mock = Mock::start(channel, &["tok-1"]).await;
+    let h = host(&["maria_k"]);
+    let stop = CancellationToken::new();
+    let dynh: Arc<dyn Host> = h.clone();
+    let task = tokio::spawn(run_forever(dynh, creds(), token_fn(Arc::default()), stop.clone(), Some(mock.path.clone())));
+    until("present", || last_presence(&h) == vec!["maria_k"]).await;
+    let alerts = h.alerts.lock().unwrap().len();
+
+    // Another list is chosen: moderator is on it, maria_k isn't.
+    *h.targets.lock().unwrap() = vec!["moderator".into()];
+    h.wake.notify_one();
+    until("re-read", || last_presence(&h) == vec!["moderator"]).await;
+    assert_eq!(h.alerts.lock().unwrap().len(), alerts, "no beep for a list change");
+    assert!(h.lefts.lock().unwrap().is_empty(), "and no leave sound");
+
+    // Events keep working afterwards.
+    mock.dispatch("VOICE_STATE_DELETE", json!({"user": {"id": "10", "username": "moderator"}}));
+    until("leave after re-read", || last_presence(&h).is_empty()).await;
+    assert_eq!(h.lefts.lock().unwrap().as_slice(), ["moderator"]);
+    stop.cancel();
+    tokio::time::timeout(Duration::from_secs(2), task).await.expect("stops at once").unwrap();
 }

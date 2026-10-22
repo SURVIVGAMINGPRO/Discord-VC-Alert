@@ -1,49 +1,45 @@
 <script lang="ts">
-  // "Sound for {label}". Every edit saves at once; the file keeps v1's shape
-  // ({beep: {…}} without gap_ratio, or {file}).
+  // "Sound for {label}": what plays when they join, and when they leave. Every
+  // edit saves at once, in the watched list only (each list keeps its own).
+  // The join sound keeps v1's shape ({beep: {…}} without gap_ratio, or {file}).
   import Sheet from '../components/Sheet.svelte';
   import Avatar from '../components/Avatar.svelte';
   import Button from '../components/Button.svelte';
   import SoundControls from '../components/SoundControls.svelte';
-  import SpeakerIcon from '../components/SpeakerIcon.svelte';
-  import Switch from '../components/Switch.svelte';
   import { app, avatars } from '../lib/app.svelte';
-  import { call, errText } from '../lib/api';
+  import { call } from '../lib/api';
   import { untrack } from 'svelte';
-  import { describeBeep, keyOf, lockMs } from '../lib/util';
+  import { describeBeep, keyOf, leaveBeep } from '../lib/util';
   import type { Beep, SoundSpec, Target } from '../lib/types';
 
   let { t, onclose }: { t: Target; onclose: () => void } = $props();
-  // The sheet is opened for one person; their saved sound seeds the controls.
+  // The sheet is opened for one person; their saved sounds seed the controls.
   const first = untrack(() => t);
   const key = keyOf(first);
   const cfg = $derived(app.snap!.config);
   const live = $derived(cfg.targets.find((x) => keyOf(x) === key) ?? first);
 
-  type Mode = 'universal' | 'beep' | 'file';
+  type Mode = 'off' | 'universal' | 'beep' | 'file';
+  const universalBeep = untrack(() => app.snap!.config.beep);
+
+  // When they join.
   let mode = $state<Mode>(first.sound?.file ? 'file' : first.sound?.beep ? 'beep' : 'universal');
-  let beep = $state<Beep>({ ...app.snap!.config.beep, ...(first.sound?.beep ?? {}) });
+  let beep = $state<Beep>({ ...universalBeep, ...(first.sound?.beep ?? {}) });
   let file = $state(first.sound?.file ?? '');
+
+  // When they leave ('universal' is the soft beep made from their sound).
+  let leaveMode = $state<Mode>(
+    first.leave_sound === false ? 'off' : first.leave?.file ? 'file' : first.leave?.beep ? 'beep' : 'universal',
+  );
+  let leaveBeepNow = $state<Beep>(
+    first.leave?.beep ? { ...universalBeep, ...first.leave.beep } : untrack(() => leaveBeep(beep)),
+  );
+  let leaveFile = $state(first.leave?.file ?? '');
 
   function spec(m: Mode, b: Beep, f: string): SoundSpec | null {
     if (m === 'beep') return { beep: { frequency_hz: b.frequency_hz, duration_ms: b.duration_ms, repeats: b.repeats, volume: b.volume } };
     if (m === 'file' && f) return { file: f };
     return null;
-  }
-
-  // The leave sound: one softer, lower beep made from their sound.
-  let leaveTesting = $state(false);
-  let leaveError = $state('');
-  async function testLeave() {
-    if (leaveTesting) return;
-    leaveError = '';
-    try {
-      const d = await call<number>('test_leave_sound', { key });
-      leaveTesting = true;
-      setTimeout(() => (leaveTesting = false), lockMs(d));
-    } catch (e) {
-      leaveError = errText(e);
-    }
   }
 
   function change(m: Mode, b: Beep, f: string) {
@@ -52,12 +48,20 @@
     file = f;
     call('set_person_sound', { key, spec: spec(m, b, f) });
   }
+
+  function changeLeave(m: Mode, b: Beep, f: string) {
+    leaveMode = m;
+    leaveBeepNow = b;
+    leaveFile = f;
+    call('set_leave', { key, on: m !== 'off', spec: spec(m, b, f) });
+  }
 </script>
 
 <Sheet title="Sound for {live.label}" subtitle={first.username ? `@${first.username}` : `ID ${first.id}`} subtitleIsId width={460} {onclose}>
   {#snippet header()}
     <Avatar key={key} label={live.label} size={36} src={avatars[key] ?? null} />
   {/snippet}
+  <h3>When they join</h3>
   <SoundControls
     modes={[
       { value: 'universal', label: 'Universal' },
@@ -71,15 +75,26 @@
     onchange={change}
     ontest={() => call<number>('test_sound', { spec: spec(mode, beep, file) })}
   />
-  <div class="leave">
-    <div class="leave-text">
-      <span class="leave-title">Soft sound when they leave</span>
-      <span class="leave-sub">One lower, quieter beep, so you know they've gone.</span>
-    </div>
-    <Button small onclick={testLeave} label="Test the leave sound"><SpeakerIcon size={16} playing={leaveTesting} /> Test</Button>
-    <Switch label="Soft sound when they leave" checked={!!live.leave_sound} onchange={(v) => call('set_leave_sound', { key, on: v })} />
-  </div>
-  {#if leaveError}<p class="error" role="alert">{leaveError}</p>{/if}
+
+  <h3 class="leave">When they leave</h3>
+  {#if !cfg.general.leave_sounds}
+    <p class="note">Leave sounds are off for everyone in Settings → Sound. What you choose here plays once they're on.</p>
+  {/if}
+  <SoundControls
+    modes={[
+      { value: 'off', label: 'Off' },
+      { value: 'universal', label: 'Soft' },
+      { value: 'beep', label: 'Own beep' },
+      { value: 'file', label: 'Sound file' },
+    ]}
+    mode={leaveMode}
+    beep={leaveBeepNow}
+    file={leaveFile}
+    universalNote="One lower, quieter beep made from their join sound."
+    offNote="No sound when {live.label} leaves."
+    onchange={changeLeave}
+    ontest={() => call<number>('test_leave_sound', { key })}
+  />
   {#snippet footer()}
     <Button kind="ghost" disabled={mode === 'universal'} onclick={() => change('universal', beep, file)}>Use the universal sound</Button>
     <Button kind="primary" onclick={onclose}>Done</Button>
@@ -87,29 +102,20 @@
 </Sheet>
 
 <style>
-  .leave {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    margin-top: var(--sp-4);
+  h3 {
+    margin: 0 0 var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+  }
+  h3.leave {
+    margin-top: var(--sp-5);
     padding-top: var(--sp-4);
     border-top: 1px solid var(--line);
   }
-  .leave-text {
-    display: grid;
-    flex: 1;
-    min-width: 0;
-  }
-  .leave-title {
-    font-weight: var(--fw-medium);
-  }
-  .leave-sub,
-  .error {
+  .note {
+    margin: 0 0 var(--sp-3);
     color: var(--text-3);
     font-size: var(--fs-sm);
-  }
-  .error {
-    margin: var(--sp-2) 0 0;
-    color: var(--danger-text);
   }
 </style>

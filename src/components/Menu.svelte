@@ -7,6 +7,8 @@
     label: string;
     icon?: IconName;
     danger?: boolean;
+    /** A choice among several (the lists): a check when chosen, else an empty slot. */
+    checked?: boolean;
     run: () => void;
   }
   let { x, y, items, label = 'Actions', onclose }: { x: number; y: number; items: MenuItem[]; label?: string; onclose: () => void } = $props();
@@ -54,14 +56,17 @@
   {#each items as it}
     <button
       type="button"
-      role="menuitem"
+      role={it.checked === undefined ? 'menuitem' : 'menuitemradio'}
+      aria-checked={it.checked}
       class:danger={it.danger}
       onclick={() => {
         onclose();
         it.run();
       }}
     >
-      {#if it.icon}<Icon name={it.icon} size={16} />{/if}
+      {#if it.checked !== undefined}
+        <span class="slot">{#if it.checked}<Icon name="check" size={16} />{/if}</span>
+      {:else if it.icon}<Icon name={it.icon} size={16} />{/if}
       {it.label}
     </button>
   {/each}
@@ -114,5 +119,11 @@
   .danger:hover,
   .danger:focus-visible {
     background: var(--danger-wash);
+  }
+  .slot {
+    display: inline-flex;
+    flex: none;
+    width: 16px;
+    color: var(--accent-text);
   }
 </style>

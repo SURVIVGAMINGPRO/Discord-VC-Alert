@@ -211,9 +211,22 @@ impl SoundBank {
 }
 
 impl SoundBank {
-    /// A person's leave sound (always a generated beep; see `leave_beep`).
+    /// A person's leave sound: their own leave beep or file, else a soft
+    /// beep made from their join sound (`leave_beep`), also if the file is gone.
     pub fn leave_clip_for(&self, cfg: &Config, key: &str) -> Result<Arc<Clip>, String> {
-        let (_, beep) = merged_sound(cfg, cfg.find(key).and_then(|t| t.sound.as_ref()));
+        let t = cfg.find(key);
+        if let Some(spec) = t.and_then(|t| t.leave.as_ref()) {
+            match (&spec.file, &spec.beep) {
+                (Some(f), _) => {
+                    if let Ok(c) = self.build(f, &cfg.beep) {
+                        return Ok(c);
+                    }
+                }
+                (None, Some(b)) => return self.build("", &b.apply_to(&cfg.beep)),
+                _ => {}
+            }
+        }
+        let (_, beep) = merged_sound(cfg, t.and_then(|t| t.sound.as_ref()));
         self.build("", &leave_beep(&beep))
     }
 }
@@ -361,6 +374,7 @@ mod tests {
             username: Some("xx".into()),
             sound: Some(SoundSpec { file: Some("gone.wav".into()), beep: None }),
             leave_sound: true,
+            leave: None,
         });
         assert!(bank.for_spec(&cfg, cfg.targets[0].sound.as_ref()).is_err());
         let c = bank.clip_for(&cfg, "xx").unwrap();
@@ -383,5 +397,26 @@ mod tests {
         assert_eq!(low.frequency_hz, 300, "never below the slider minimum");
         assert!(low.volume >= 0.05);
         assert_eq!(low.duration_ms, 300);
+    }
+
+    #[test]
+    fn leave_sound_choices() {
+        let dir = tempfile::tempdir().unwrap();
+        let bank = SoundBank::new(dir.path());
+        let mut cfg = Config::default();
+        let mut t = crate::config::Target::new("x", crate::config::parse_identifier("xx").unwrap());
+        t.leave_sound = true;
+        cfg.targets.push(t);
+        let ms = |d: f64| (d * 1000.0).round() as i64;
+        let soft = bank.leave_clip_for(&cfg, "xx").unwrap();
+        let expected = beep_samples(&leave_beep(&cfg.beep)).len() as f64 / RATE as f64;
+        assert_eq!(ms(soft.duration), ms(expected), "no choice: the soft beep");
+        let four = crate::config::PartialBeep { repeats: Some(4), ..Default::default() };
+        cfg.targets[0].leave = Some(SoundSpec { file: None, beep: Some(four) });
+        let own = bank.leave_clip_for(&cfg, "xx").unwrap();
+        assert!(own.duration > soft.duration, "their own leave beep (4 beeps) is used");
+        cfg.targets[0].leave = Some(SoundSpec { file: Some("gone.wav".into()), beep: None });
+        let fallback = bank.leave_clip_for(&cfg, "xx").unwrap();
+        assert_eq!(ms(fallback.duration), ms(soft.duration), "a missing file falls back to the soft beep");
     }
 }

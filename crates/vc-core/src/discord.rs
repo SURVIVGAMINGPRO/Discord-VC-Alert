@@ -248,6 +248,11 @@ pub trait Host: Send + Sync + 'static {
     /// A watched person left your channel (not called in Quiet mode, nor
     /// when you switch channels yourself).
     fn left(&self, _key: &str) {}
+    /// Notified when the list of people changes (another list chosen, someone
+    /// added or removed): the watcher then re-reads who's in your call, quietly.
+    fn wake(&self) -> Option<Arc<tokio::sync::Notify>> {
+        None
+    }
     fn log(&self, msg: &str);
 }
 
@@ -255,7 +260,11 @@ pub trait Host: Send + Sync + 'static {
 
 struct Session<'a> {
     io: Box<dyn Stream>,
+    /// Bytes read but not yet taken as a whole frame. Reading only appends
+    /// here, so a read interrupted by the poll timer loses nothing.
+    buf: Vec<u8>,
     pending: VecDeque<Value>,
+    last_poll: Instant,
     host: &'a Arc<dyn Host>,
     creds: &'a Creds,
     token_fn: &'a TokenFn,
@@ -269,13 +278,57 @@ pub struct WatchState {
     channel_id: Option<String>,
     present: Vec<Member>,
     last_alert: HashMap<String, Instant>,
+    /// Group and DM calls: Discord may not send join/leave events for them
+    /// (or may refuse the subscription), so we ask who's here every
+    /// `POLL_EVERY` and work out the difference.
+    polling: bool,
+}
+
+/// How often a group or DM call is checked for who's in it.
+pub const POLL_EVERY: Duration = Duration::from_secs(2);
+
+/// Take one whole frame out of `buf`, if it holds one.
+fn take_frame(buf: &mut Vec<u8>) -> std::io::Result<Option<(u32, Value)>> {
+    if buf.len() < 8 {
+        return Ok(None);
+    }
+    let op = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+    let len = u32::from_le_bytes(buf[4..8].try_into().unwrap()) as usize;
+    if len > 16 * 1024 * 1024 {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "frame too large"));
+    }
+    if buf.len() < 8 + len {
+        return Ok(None);
+    }
+    let body: Vec<u8> = buf.drain(..8 + len).skip(8).collect();
+    let payload = if body.is_empty() {
+        json!({})
+    } else {
+        serde_json::from_slice(&body).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?
+    };
+    Ok(Some((op, payload)))
+}
+
+fn has_frame(buf: &[u8]) -> bool {
+    buf.len() >= 8 && buf.len() >= 8 + u32::from_le_bytes(buf[4..8].try_into().unwrap()) as usize
 }
 
 impl<'a> Session<'a> {
+    /// Read more bytes. Cancel-safe: `read_buf` only appends what it read.
+    async fn fill(&mut self) -> Result<(), Fail> {
+        if self.io.read_buf(&mut self.buf).await? == 0 {
+            return Err(Fail::Conn("Connection to Discord closed.".into()));
+        }
+        Ok(())
+    }
+
     async fn recv(&mut self) -> Result<Value, Fail> {
         loop {
-            let Some((op, payload)) = read_frame(&mut self.io).await? else {
-                return Err(Fail::Conn("Connection to Discord closed.".into()));
+            let (op, payload) = loop {
+                if let Some(f) = take_frame(&mut self.buf)? {
+                    break f;
+                }
+                self.fill().await?;
             };
             match op {
                 OP_PING => write_frame(&mut self.io, OP_PONG, &payload).await?,
@@ -489,19 +542,36 @@ impl<'a> Session<'a> {
         }
         self.state.channel_id = channel_id.clone();
         self.state.present.clear();
+        self.state.polling = false;
         let Some(id) = channel_id else {
             self.host.log("Not in a voice channel.");
             self.host.status(Status::IdleNoChannel, "");
             self.publish();
             return Ok(());
         };
+        // Group and DM calls may refuse these; then we fall back to polling.
+        let mut subscribed = true;
         for evt in ["VOICE_STATE_CREATE", "VOICE_STATE_DELETE"] {
-            self.command("SUBSCRIBE", json!({ "channel_id": id }), Some(evt)).await?;
+            match self.command("SUBSCRIBE", json!({ "channel_id": id }), Some(evt)).await {
+                Ok(_) => {}
+                Err(Fail::Rpc { code, message }) => {
+                    self.host.log(&format!("Discord refused {evt} for this call ({code}: {message})."));
+                    subscribed = false;
+                }
+                Err(e) => return Err(e),
+            }
         }
         // Who is already here? Always read: the overlay needs it even when the
         // "already present" beep is off.
         let info = self.command("GET_SELECTED_VOICE_CHANNEL", json!({}), None).await?;
-        let name = info.get("name").and_then(Value::as_str).unwrap_or("").to_string();
+        let in_server = matches!(info.get("guild_id"), Some(Value::String(g)) if !g.is_empty());
+        self.state.polling = !subscribed || !in_server;
+        self.last_poll = Instant::now();
+        let mut name = info.get("name").and_then(Value::as_str).unwrap_or("").trim().to_string();
+        if name.is_empty() && !in_server {
+            // DM calls have no channel name.
+            name = if info.get("type").and_then(Value::as_i64) == Some(3) { "Group call" } else { "Call" }.into();
+        }
         self.host.log("Watching your current voice channel.");
         self.host.status(Status::WatchingChannel, &name);
         if let Some(Value::Array(states)) = info.get("voice_states") {
@@ -574,9 +644,93 @@ impl<'a> Session<'a> {
             while let Some(m) = self.pending.pop_front() {
                 self.handle(m).await?;
             }
+            let due = if self.state.polling {
+                POLL_EVERY.saturating_sub(self.last_poll.elapsed())
+            } else {
+                Duration::from_secs(3600)
+            };
+            if due.is_zero() {
+                self.sync(true).await?;
+                continue;
+            }
+            if !has_frame(&self.buf) {
+                // Wait for Discord, the next poll, or a changed list. `fill`
+                // is cancel-safe, so whichever comes first loses nothing.
+                let wake = self.host.wake();
+                tokio::select! {
+                    r = self.fill() => r?,
+                    _ = tokio::time::sleep(due) => continue,
+                    _ = async {
+                        match &wake {
+                            Some(n) => n.notified().await,
+                            None => std::future::pending().await,
+                        }
+                    } => {
+                        self.sync(false).await?;
+                        continue;
+                    }
+                }
+                if !has_frame(&self.buf) {
+                    continue;
+                }
+            }
             let m = self.recv().await?;
             self.handle(m).await?;
         }
+    }
+
+    /// Ask who's in your call and turn the difference into joins and leaves.
+    /// `announce`: as if Discord had sent them (group and DM calls, polled);
+    /// otherwise quietly (your list changed: no beeps, no leave sounds).
+    async fn sync(&mut self, announce: bool) -> Result<(), Fail> {
+        self.last_poll = Instant::now();
+        if self.state.channel_id.is_none() && !announce {
+            return Ok(());
+        }
+        let info = self.command("GET_SELECTED_VOICE_CHANNEL", json!({}), None).await?;
+        let id = info.get("id").and_then(Value::as_str).map(str::to_string);
+        if id != self.state.channel_id {
+            return self.switch_to(id).await;
+        }
+        let mut here: Vec<(String, Value)> = Vec::new();
+        if let Some(Value::Array(states)) = info.get("voice_states") {
+            for vs in states {
+                if let Some(hit) = self.matches(vs.get("user")) {
+                    if !here.iter().any(|(k, _)| *k == hit) {
+                        here.push((hit, vs["user"].clone()));
+                    }
+                }
+            }
+        }
+        let gone: Vec<String> = self
+            .state
+            .present
+            .iter()
+            .filter(|p| !here.iter().any(|(k, _)| *k == p.key))
+            .map(|p| p.key.clone())
+            .collect();
+        let new: Vec<(String, Value)> =
+            here.into_iter().filter(|(k, _)| !self.state.present.iter().any(|p| p.key == *k)).collect();
+        if gone.is_empty() && new.is_empty() {
+            return Ok(());
+        }
+        self.state.present.retain(|p| !gone.contains(&p.key));
+        for (k, u) in &new {
+            self.remember(k, u);
+        }
+        self.publish();
+        if !announce {
+            return Ok(());
+        }
+        for (k, _) in &new {
+            self.alert(k, "joined");
+        }
+        if !self.host.quiet() {
+            for k in &gone {
+                self.host.left(k);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -600,7 +754,9 @@ pub async fn run_forever(
                 let io = connect(ipc_path.as_deref()).await?;
                 let mut s = Session {
                     io,
+                    buf: Vec::new(),
                     pending: VecDeque::new(),
+                    last_poll: Instant::now(),
                     host: &host,
                     creds: &creds,
                     token_fn: &token_fn,
@@ -652,7 +808,16 @@ pub async fn test_connection(
 ) -> Result<String, Fail> {
     let mut state = WatchState::default();
     let io = connect(ipc_path.as_deref()).await?;
-    let mut s = Session { io, pending: VecDeque::new(), host: &host, creds: &creds, token_fn: &token_fn, state: &mut state };
+    let mut s = Session {
+        io,
+        buf: Vec::new(),
+        pending: VecDeque::new(),
+        last_poll: Instant::now(),
+        host: &host,
+        creds: &creds,
+        token_fn: &token_fn,
+        state: &mut state,
+    };
     let user = s.handshake().await?;
     s.authenticate().await?;
     Ok(user.get("username").and_then(Value::as_str).unwrap_or("").to_string())

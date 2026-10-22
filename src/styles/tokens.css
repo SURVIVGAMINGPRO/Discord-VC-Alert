@@ -103,6 +103,10 @@
   --toast-peek: 12px; /* how much of each toast behind shows above the front one */
   --stagger-stack: 30ms; /* the stack opening or closing, front to back */
   --dialog-from: 0.8;
+  --dialog-tip: 20; /* degrees an alert dialog tips back from (Animate UI, from the top) */
+  --dialog-perspective: 500px;
+  --alert-scrim: rgba(0, 0, 0, 0.1); /* behind an alert dialog, with --blur-backdrop */
+  --blur-backdrop: 4px;
   --blur-icon: 2px;
   --blur-surface: 4px;
   --launch-depth: 600px; /* how far the launch logo travels towards you */

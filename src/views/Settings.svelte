@@ -12,6 +12,7 @@
   import Toasts from '../components/Toasts.svelte';
   import ImportSheet from '../sheets/ImportSheet.svelte';
   import ExportSheet from '../sheets/ExportSheet.svelte';
+  import AlertDialog from '../components/AlertDialog.svelte';
   import PasteList from '../sheets/PasteList.svelte';
   import { app, toast } from '../lib/app.svelte';
   import { call, closeWindow, errText, on, pickFile } from '../lib/api';
@@ -73,9 +74,23 @@
   const set = <K extends keyof Config>(section: K, values: Partial<Config[K]>) => patch({ [section]: values });
 
   let soundMode = $state<'beep' | 'file'>(app.snap!.config.sound_file ? 'file' : 'beep');
-  function universal(m: 'universal' | 'beep' | 'file', b: Beep, f: string) {
+  function universal(m: 'off' | 'universal' | 'beep' | 'file', b: Beep, f: string) {
     soundMode = m === 'file' ? 'file' : 'beep';
     patch({ beep: b, sound_file: m === 'file' ? f : '' });
+  }
+
+  // ------------------------------------------------- screen sharing
+  // Off by default (VC Alert hides from screen shares). Turning it on asks
+  // once; after that it never asks again.
+  let askCapture = $state(false);
+  function showInCapture(on: boolean) {
+    if (!on) return set('overlay', { hide_from_capture: true });
+    if (cfg.general.capture_confirmed) return set('overlay', { hide_from_capture: false });
+    askCapture = true;
+  }
+  function confirmCapture() {
+    askCapture = false;
+    patch({ overlay: { hide_from_capture: false }, general: { capture_confirmed: true } });
   }
 
   // ------------------------------------------------------------ data
@@ -144,7 +159,7 @@
         {#if tab === 'sound'}
           <h1 id="h-sound">Sound</h1>
           <h2>Universal sound</h2>
-          <p class="lead">Plays for everyone, unless someone has their own sound from the speaker button in your list.</p>
+          <p class="lead">Plays for everyone, unless someone has their own sound: their ⋯ menu → Sound… in your list.</p>
           <SoundControls
             modes={[
               { value: 'beep', label: 'Beep' },
@@ -157,6 +172,12 @@
             ontest={() => call<number>('test_sound', { spec: null })}
           />
           <div class="rows">
+            <SettingRow
+              title="Sound when someone leaves"
+              sub="A soft beep when someone on your list leaves your call. Change it for one person in their Sound…."
+            >
+              <Switch label="Sound when someone leaves" checked={cfg.general.leave_sounds} onchange={(v) => set('general', { leave_sounds: v })} />
+            </SettingRow>
             <SettingRow title="Beep if they're already there" sub="Also alert when you join a channel they're already in.">
               <Switch label="Beep if they're already there" checked={cfg.alert_if_already_present} onchange={(v) => patch({ alert_if_already_present: v })} />
             </SettingRow>
@@ -239,10 +260,10 @@
               </SettingRow>
             {/if}
             <SettingRow
-              title="Hide from screen sharing"
-              sub="VC Alert's windows stay out of screen shares and recordings. {mac ? 'Some newer macOS capture tools may still show them.' : 'Needs Windows 10 version 2004 or later.'}"
+              title="Show in screen sharing"
+              sub="Off: VC Alert's windows stay out of screen shares and recordings. {mac ? 'Some newer macOS capture tools may still show them.' : 'Needs Windows 10 version 2004 or later.'}"
             >
-              <Switch label="Hide from screen sharing" checked={cfg.overlay.hide_from_capture} onchange={(v) => set('overlay', { hide_from_capture: v })} />
+              <Switch label="Show in screen sharing" checked={!cfg.overlay.hide_from_capture} onchange={showInCapture} />
             </SettingRow>
           </div>
         {:else if tab === 'general'}
@@ -380,6 +401,16 @@
     {/key}
   </main>
 </div>
+
+{#if askCapture}
+  <AlertDialog
+    title="Show VC Alert in screen sharing?"
+    description="Anyone watching your screen share or recording will see VC Alert: your watch list, the overlay, and who joins. You won't be asked again."
+    confirm="Show it"
+    onconfirm={confirmCapture}
+    oncancel={() => (askCapture = false)}
+  />
+{/if}
 
 {#if pasting}
   <PasteList onclose={() => (pasting = false)} onjson={(text) => ((pasting = false), (importing = { text }))} />

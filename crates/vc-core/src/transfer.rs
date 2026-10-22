@@ -209,20 +209,25 @@ pub fn parse(text: &str, opts: &ParseOptions) -> Result<Parsed, String> {
         }
     }
 
-    // Per-person sound files: keep only ones that can come along.
+    // Per-person sound files (join and leave): keep only ones that can come along.
     for t in targets.iter_mut() {
-        let Some(spec) = t.sound.as_mut() else { continue };
-        if let Some(file) = spec.file.clone() {
-            match keep_sound(&file, &mut out, opts) {
-                Some(kept) => spec.file = Some(kept),
-                None => {
-                    spec.file = None;
-                    out.missing_sounds.push(t.label.clone());
+        let label = t.label.clone();
+        for slot in [&mut t.sound, &mut t.leave] {
+            let Some(spec) = slot.as_mut() else { continue };
+            if let Some(file) = spec.file.clone() {
+                match keep_sound(&file, &mut out, opts) {
+                    Some(kept) => spec.file = Some(kept),
+                    None => {
+                        spec.file = None;
+                        if !out.missing_sounds.contains(&label) {
+                            out.missing_sounds.push(label.clone());
+                        }
+                    }
                 }
             }
-        }
-        if spec.is_empty() {
-            t.sound = None;
+            if spec.is_empty() {
+                *slot = None;
+            }
         }
     }
     out.targets = targets;
@@ -414,12 +419,14 @@ pub fn apply(p: &Parsed, cur: &Config, o: &ApplyOptions, data_dir: &Path) -> Res
                 Some(_) => {
                     let mut n = t.clone();
                     n.sound = store_sound(&t.sound)?;
+                    n.leave = store_sound(&t.leave)?;
                     out.push(n);
                     updated += 1;
                 }
                 None => {
                     let mut n = t.clone();
                     n.sound = store_sound(&t.sound)?;
+                    n.leave = store_sound(&t.leave)?;
                     out.push(n);
                     added += 1;
                 }
@@ -434,11 +441,13 @@ pub fn apply(p: &Parsed, cur: &Config, o: &ApplyOptions, data_dir: &Path) -> Res
                     out[i].label = t.label.clone();
                     out[i].sound = store_sound(&t.sound)?;
                     out[i].leave_sound = t.leave_sound;
+                    out[i].leave = store_sound(&t.leave)?;
                     updated += 1;
                 }
             } else {
                 let mut n = t.clone();
                 n.sound = store_sound(&t.sound)?;
+                n.leave = store_sound(&t.leave)?;
                 out.push(n);
                 added += 1;
             }
@@ -585,12 +594,14 @@ pub fn export(
         Some(unique)
     };
     for t in targets.iter_mut() {
-        if let Some(spec) = t.sound.as_mut() {
-            if let Some(f) = spec.file.clone() {
-                spec.file = embed(&f);
-            }
-            if spec.is_empty() {
-                t.sound = None;
+        for slot in [&mut t.sound, &mut t.leave] {
+            if let Some(spec) = slot.as_mut() {
+                if let Some(f) = spec.file.clone() {
+                    spec.file = embed(&f);
+                }
+                if spec.is_empty() {
+                    *slot = None;
+                }
             }
         }
     }
@@ -845,4 +856,24 @@ mod tests {
         assert_eq!(safe_sound_name("x.exe"), None);
         assert_eq!(safe_sound_name(".hidden.wav").as_deref(), Some("hidden.wav"));
     }
+
+    #[test]
+    fn a_shared_list_never_carries_a_leave_sound_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = cfg_with(&["alpha"]);
+        cfg.targets[0].leave_sound = false;
+        cfg.targets[0].leave = Some(SoundSpec { file: Some("/somewhere/private/leave.wav".into()), beep: None });
+        let o = ExportOptions { kind: "watchlist".into(), keys: None, embed_sounds: false, include_credentials: false, name: None };
+        let text = export(&cfg, &o, None, dir.path(), "2026-10-22", "test").unwrap();
+        assert!(!text.contains("/somewhere"), "no file paths in a shared list");
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(v["targets"][0]["leave_sound"], json!(false), "switching it off for them still travels");
+        assert!(v["targets"][0].get("leave").is_none());
+        // And an imported path is never trusted.
+        let p = parse(r#"{"vc_alert":{"kind":"watchlist"},"targets":[{"label":"A","username":"alpha","leave_sound":true,
+            "leave":{"file":"/etc/passwd"}}]}"#, &ParseOptions::default()).unwrap();
+        assert!(p.targets[0].leave.is_none());
+        assert!(p.targets[0].leave_sound);
+    }
 }
+

@@ -7,6 +7,33 @@ come from the **Build apps** workflow (Actions tab).
 app on a real Windows PC. The engine tests run on macOS and on GitHub's
 Windows machine.
 
+## 2.1.1 (2026-10-22)
+
+### Added
+- **Lists.** Keep up to 5 lists with names of up to 12 characters, and switch
+  between them from the list name next to the logo. VC Alert watches the list
+  you're on. Each list keeps its own people and its own sounds for them, so
+  someone can have one sound in "Gaming", another in "Work" and none in "Main".
+- **Your logo** at the top of the watch list, next to the list name.
+- **Show in screen sharing** (Settings → Overlay), off by default. The first
+  time you switch it on, VC Alert asks if you're sure; after that it doesn't
+  ask again.
+
+### Changed
+- **Leave sounds are on by default**: one lower, quieter beep when someone on
+  your list leaves. **Settings → Sound → Sound when someone leaves** switches
+  them off for everyone, and each person's **Sound…** has Off, Soft, their
+  own beep or a sound file.
+- Confirmations (deleting a list, showing in screen sharing) use a new dialog
+  that tips in from the top.
+
+### Fixed
+- **Group calls and DM calls work**, not only server voice channels. If
+  Discord doesn't send join and leave events for a call, VC Alert checks who's
+  there every 2 seconds instead of giving up and reconnecting.
+- Switching lists, or adding someone who's already in your call, shows them
+  straight away (without a beep).
+
 ## 2.1.0 (2026-10-22)
 
 ### Added

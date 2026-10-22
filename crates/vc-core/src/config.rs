@@ -292,13 +292,23 @@ pub struct Target {
     pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub sound: Option<SoundSpec>,
-    /// v2: play a softer sound when they leave your channel.
-    #[serde(skip_serializing_if = "is_false", default)]
+    /// v2: play a sound when they leave your channel. On unless switched off
+    /// for this person (only `false` is written); `general.leave_sounds`
+    /// switches leave sounds off for everyone.
+    #[serde(skip_serializing_if = "is_true", default = "yes")]
     pub leave_sound: bool,
+    /// v2: which leave sound (their own beep or a file). None: a soft beep
+    /// made from their join sound (`sound::leave_beep`).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub leave: Option<SoundSpec>,
 }
 
-fn is_false(b: &bool) -> bool {
-    !*b
+fn is_true(b: &bool) -> bool {
+    *b
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Target {
@@ -309,7 +319,7 @@ impl Target {
             Ident::Id(s) => (Some(s), None),
             Ident::Username(s) => (None, Some(s)),
         };
-        Target { label, id, username, sound: None, leave_sound: false }
+        Target { label, id, username, sound: None, leave_sound: true, leave: None }
     }
 
     /// v1 `target_key`: the numeric ID, else the username.
@@ -325,7 +335,7 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
     let mut skipped = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for item in items {
-        let (label, source, sound, leave_sound) = match item {
+        let (label, source, sound, leave_sound, leave) = match item {
             Value::Object(m) => {
                 let label = match m.get("label") {
                     Some(Value::String(s)) => s.clone(),
@@ -338,9 +348,15 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
                     .find(|v| truthy(v))
                     .map(value_to_text)
                     .unwrap_or_default();
-                (label, source, clean_sound(m.get("sound")), matches!(m.get("leave_sound"), Some(Value::Bool(true))))
+                (
+                    label,
+                    source,
+                    clean_sound(m.get("sound")),
+                    !matches!(m.get("leave_sound"), Some(Value::Bool(false))),
+                    clean_sound(m.get("leave")),
+                )
             }
-            other => (String::new(), value_to_text(other), None, false),
+            other => (String::new(), value_to_text(other), None, true, None),
         };
         let shown = if source.is_empty() { label.clone() } else { source.clone() };
         let ident = match parse_identifier(&source) {
@@ -357,6 +373,7 @@ pub fn normalize_targets(items: &[Value]) -> (Vec<Target>, Vec<(String, String)>
         let mut t = Target::new(&label, ident);
         t.sound = sound;
         t.leave_sound = leave_sound;
+        t.leave = leave;
         out.push(t);
     }
     (out, skipped)
@@ -485,6 +502,12 @@ pub struct General {
     pub setup_complete: bool,
     /// Show the "Quiet: no sound or overlay" line while Quiet is on.
     pub quiet_reminder: bool,
+    /// The user has confirmed once that VC Alert may show in screen shares,
+    /// so "Show in screen sharing" no longer asks.
+    pub capture_confirmed: bool,
+    /// A sound when someone on your list leaves (each person's own choice
+    /// applies while this is on).
+    pub leave_sounds: bool,
 }
 
 impl Default for General {
@@ -499,6 +522,8 @@ impl Default for General {
             hide_dock_icon: false,
             setup_complete: false,
             quiet_reminder: true,
+            capture_confirmed: false,
+            leave_sounds: true,
         }
     }
 }
@@ -520,6 +545,8 @@ pub fn clean_general(raw: Option<&Value>) -> General {
         hide_dock_icon: boolean(raw, "hide_dock_icon", d.hide_dock_icon),
         setup_complete: boolean(raw, "setup_complete", d.setup_complete),
         quiet_reminder: boolean(raw, "quiet_reminder", d.quiet_reminder),
+        capture_confirmed: boolean(raw, "capture_confirmed", d.capture_confirmed),
+        leave_sounds: boolean(raw, "leave_sounds", d.leave_sounds),
     }
 }
 
@@ -550,6 +577,70 @@ pub fn clean_appearance(raw: Option<&Value>) -> Appearance {
     }
 }
 
+// ----------------------------------------------------------------- lists --
+
+pub const MAX_LISTS: usize = 5;
+pub const LIST_NAME_MAX: usize = 12;
+pub const FIRST_LIST: &str = "Main";
+
+/// One of up to 5 named watch lists, each with its own people and their
+/// sounds. Only the active list is watched; its people live in
+/// `Config.targets`, so its `targets` here stays empty.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WatchList {
+    pub name: String,
+    #[serde(default)]
+    pub targets: Vec<Target>,
+}
+
+/// A list name: cleaned like a label, at most 12 characters.
+pub fn clean_list_name(raw: &str) -> String {
+    clean_label(raw).chars().take(LIST_NAME_MAX).collect::<String>().trim().to_string()
+}
+
+fn unique_name(base: &str, taken: &[WatchList]) -> String {
+    let free = |n: &str| !taken.iter().any(|l| l.name.to_lowercase() == n.to_lowercase());
+    if free(base) {
+        return base.to_string();
+    }
+    (2..)
+        .map(|i| {
+            let tail = format!(" {i}");
+            let head: String = base.chars().take(LIST_NAME_MAX - tail.chars().count()).collect();
+            format!("{}{tail}", head.trim_end())
+        })
+        .find(|n| free(n))
+        .unwrap()
+}
+
+/// Lists from a file: at most 5, names cleaned and unique (a clash or a blank
+/// gets a number, so no one's people are dropped), the active index in range,
+/// and the active list's people in `targets`.
+fn clean_lists(raw: Option<&Value>, active: Option<&Value>, targets: &mut Vec<Target>) -> (Vec<WatchList>, usize) {
+    let mut lists: Vec<WatchList> = Vec::new();
+    if let Some(Value::Array(items)) = raw {
+        for item in items.iter().take(MAX_LISTS) {
+            let Value::Object(m) = item else { continue };
+            let name = clean_list_name(m.get("name").and_then(Value::as_str).unwrap_or(""));
+            let name = unique_name(if name.is_empty() { "List" } else { &name }, &lists);
+            let people = match m.get("targets") {
+                Some(Value::Array(a)) => normalize_targets(a).0,
+                _ => Vec::new(),
+            };
+            lists.push(WatchList { name, targets: people });
+        }
+    }
+    if lists.is_empty() {
+        lists.push(WatchList { name: FIRST_LIST.into(), targets: Vec::new() });
+    }
+    let i = active.and_then(Value::as_u64).map(|n| n as usize).filter(|&n| n < lists.len()).unwrap_or(0);
+    let stored = std::mem::take(&mut lists[i].targets);
+    if targets.is_empty() {
+        *targets = stored;
+    }
+    (lists, i)
+}
+
 // ---------------------------------------------------------------- config --
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -557,7 +648,11 @@ pub struct Config {
     pub client_id: String,
     pub redirect_uri: String,
     pub scopes: Vec<String>,
+    /// The active list's people.
     pub targets: Vec<Target>,
+    /// Every list in order (the active one's people are in `targets`).
+    pub lists: Vec<WatchList>,
+    pub active_list: usize,
     pub alert_if_already_present: bool,
     pub cooldown_seconds: f64,
     pub sound_file: String,
@@ -575,6 +670,8 @@ impl Default for Config {
             redirect_uri: "http://localhost".into(),
             scopes: vec!["rpc".into(), "rpc.voice.read".into()],
             targets: Vec::new(),
+            lists: vec![WatchList { name: FIRST_LIST.into(), targets: Vec::new() }],
+            active_list: 0,
             alert_if_already_present: true,
             cooldown_seconds: 5.0,
             sound_file: String::new(),
@@ -614,7 +711,8 @@ impl Config {
         if let Some(Value::Array(a)) = m.get("target_user_ids") {
             items.extend(a.iter().cloned());
         }
-        let (targets, _) = normalize_targets(&items);
+        let (mut targets, _) = normalize_targets(&items);
+        let (lists, active_list) = clean_lists(m.get("lists"), m.get("active_list"), &mut targets);
         let alert = match m.get("alert_if_already_present") {
             Some(Value::Bool(b)) => *b,
             Some(Value::Number(n)) => n.as_f64() != Some(0.0),
@@ -628,6 +726,8 @@ impl Config {
             },
             scopes,
             targets,
+            lists,
+            active_list,
             alert_if_already_present: alert,
             cooldown_seconds: num(m.get("cooldown_seconds").or(Some(&json!(5))), 0.0, 600.0, 5.0, false),
             sound_file: text("sound_file", ""),
@@ -647,6 +747,8 @@ impl Config {
         m.insert("redirect_uri".into(), json!(self.redirect_uri));
         m.insert("scopes".into(), json!(self.scopes));
         m.insert("targets".into(), json!(self.targets));
+        m.insert("lists".into(), json!(self.lists));
+        m.insert("active_list".into(), json!(self.active_list));
         m.insert("alert_if_already_present".into(), json!(self.alert_if_already_present));
         m.insert("cooldown_seconds".into(), json!(self.cooldown_seconds));
         m.insert("sound_file".into(), json!(self.sound_file));
@@ -686,6 +788,18 @@ impl Config {
             }
         }
         Config::from_value(&base)
+    }
+
+    /// Make list `i` the watched one: its people move into `targets`, the
+    /// current list's people go back into its entry.
+    pub fn switch_list(&mut self, i: usize) {
+        if i == self.active_list || i >= self.lists.len() {
+            return;
+        }
+        let a = self.active_list;
+        self.lists[a].targets = std::mem::take(&mut self.targets);
+        self.targets = std::mem::take(&mut self.lists[i].targets);
+        self.active_list = i;
     }
 
     pub fn find(&self, key: &str) -> Option<&Target> {
@@ -852,18 +966,19 @@ mod tests {
     }
 
     #[test]
-    fn leave_sound_round_trips_and_defaults_off() {
+    fn leave_sound_is_on_unless_switched_off() {
         let (ts, _) = normalize_targets(&[
-            json!({"label": "A", "username": "aa", "leave_sound": true}),
-            json!({"label": "B", "username": "bb", "leave_sound": "yes"}),
+            json!({"label": "A", "username": "aa", "leave_sound": false}),
+            json!({"label": "B", "username": "bb", "leave_sound": "no"}),
             json!({"label": "C", "username": "cc"}),
         ]);
-        assert!(ts[0].leave_sound);
-        assert!(!ts[1].leave_sound, "only a real true switches it on");
-        assert!(!ts[2].leave_sound);
+        assert!(!ts[0].leave_sound);
+        assert!(ts[1].leave_sound, "only a real false switches it off");
+        assert!(ts[2].leave_sound, "on by default");
         let v = serde_json::to_value(&ts).unwrap();
-        assert_eq!(v[0]["leave_sound"], json!(true));
-        assert!(v[2].get("leave_sound").is_none(), "off stays out of the file (v1 shape)");
+        assert_eq!(v[0]["leave_sound"], json!(false));
+        assert!(v[2].get("leave_sound").is_none(), "the default stays out of the file (v1 shape)");
+        assert!(Config::default().general.leave_sounds, "leave sounds are on for everyone by default");
     }
 
     #[test]
@@ -873,5 +988,59 @@ mod tests {
         let p = c.patched(&json!({"general": {"quiet_reminder": false}})).unwrap();
         assert!(!p.general.quiet_reminder);
         assert!(!p.general.quiet, "other general settings untouched");
+    }
+
+    #[test]
+    fn lists_are_cleaned_and_an_old_file_gets_one() {
+        let old = Config::from_value(&json!({"targets": [{"label": "A", "username": "aa"}]})).unwrap();
+        assert_eq!(old.lists.len(), 1);
+        assert_eq!(old.lists[0].name, FIRST_LIST);
+        assert_eq!(old.targets.len(), 1, "an older file's people stay where they were");
+
+        let names = ["Gaming", "gaming", "", "A very long list name", "Five", "Six"];
+        let raw = json!({
+            "lists": names.iter().map(|n| json!({"name": n, "targets": [{"label": n, "username": "bb"}]})).collect::<Vec<_>>(),
+            "active_list": 9,
+        });
+        let c = Config::from_value(&raw).unwrap();
+        let got: Vec<&str> = c.lists.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(got, ["Gaming", "gaming 2", "List", "A very long", "Five"], "at most 5, unique, ≤12 characters");
+        assert_eq!(c.active_list, 0, "an index out of range falls back to the first list");
+        assert!(c.lists[0].targets.is_empty(), "the active list's people live in targets");
+        assert_eq!(c.targets.len(), 1);
+        assert_eq!(c.lists[1].targets.len(), 1);
+    }
+
+    #[test]
+    fn each_list_keeps_its_own_sounds() {
+        let mut c = Config::default();
+        let t = |beep: Option<i64>| Target {
+            sound: beep.map(|f| SoundSpec { file: None, beep: Some(PartialBeep { frequency_hz: Some(f), ..Default::default() }) }),
+            ..Target::new("Maria", parse_identifier("maria_k").unwrap())
+        };
+        c.targets = vec![t(Some(1200))];
+        c.lists.push(WatchList { name: "Work".into(), targets: vec![t(Some(650))] });
+        c.lists.push(WatchList { name: "Quiet".into(), targets: vec![t(None)] });
+        let freq = |c: &Config| c.targets[0].sound.as_ref().and_then(|s| s.beep.as_ref()).and_then(|b| b.frequency_hz);
+        assert_eq!(freq(&c), Some(1200));
+        c.switch_list(1);
+        assert_eq!(freq(&c), Some(650));
+        c.switch_list(2);
+        assert_eq!(freq(&c), None);
+        c.switch_list(0);
+        assert_eq!(freq(&c), Some(1200));
+        let back = Config::from_value(&c.to_value()).unwrap();
+        assert_eq!(back, c, "lists survive a save and load");
+        assert!(c.patched(&json!({"lists": []})).is_err(), "lists only change through the store");
+    }
+
+    #[test]
+    fn leave_choice_and_screen_share_flag_round_trip() {
+        let (ts, _) = normalize_targets(&[json!({"label": "A", "username": "aa", "leave_sound": true,
+            "leave": {"beep": {"frequency_hz": 500, "repeats": 2}}})]);
+        assert_eq!(ts[0].leave.as_ref().and_then(|s| s.beep.as_ref()).and_then(|b| b.frequency_hz), Some(500));
+        let c = Config::default();
+        assert!(!c.general.capture_confirmed);
+        assert!(c.patched(&json!({"general": {"capture_confirmed": true}})).unwrap().general.capture_confirmed);
     }
 }

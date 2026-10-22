@@ -53,8 +53,13 @@ minutes, once.
 - **Add someone:** type their **unique username** (not their display name) in
   the search box and press Enter. A long numeric user ID works too. Paste
   several names separated by commas or spaces to add them all at once.
-- **Start watching**, then join a voice channel. People from your list who are
-  in your channel move to the top, and the overlay shows them.
+- **Start watching**, then join a voice channel, in a server or a group call.
+  People from your list who are in your call move to the top, and the overlay
+  shows them.
+- **Lists:** keep up to 5 lists (names up to 12 characters), say "Gaming" and
+  "Work". Click the list name next to the logo to switch, create, rename or
+  delete one. VC Alert watches the list you're on, and each list has its own
+  people and its own sounds for them.
 - **Sounds:** the default is *Classic* (1700 Hz, 90 ms, 3 beeps, 75%). Tune a
   beep and choose **Save as profile** to keep up to 3 of your own, with names
   of up to 12 characters.
@@ -63,8 +68,10 @@ minutes, once.
   The same menu has Rename, Copy username and Remove. People with their own
   sound show a **Custom** tag (**Custom · Urgent** when it's a ready-made beep
   or one of your profiles). Delete removes the selected person, with Undo.
-- **Leave sound:** in a person's **Sound…**, switch on **Soft sound when they
-  leave** for one lower, quieter beep when they leave your channel.
+- **Leave sound:** when someone on your list leaves your call you hear one
+  lower, quieter beep. Switch it off for everyone in **Settings → Sound →
+  Sound when someone leaves**, or change it for one person in their
+  **Sound…** (Off, Soft, their own beep, or a sound file).
 - **Snooze:** someone keeps dropping and rejoining? Their ⋯ menu has **Snooze
   for 1 hour** and **Snooze for the rest of this call**: no join or leave
   sound for them until then. Snoozes end when you quit VC Alert.
@@ -73,8 +80,10 @@ minutes, once.
   next time) and **Don't show again** (bring it back in **Settings → General**).
 - **Overlay:** **Settings → Overlay** sets the style (pictures, a count, or
   dots), size, and layout. **Position…** lets you drag it anywhere. It never
-  takes focus, clicks go straight through it, and it can be hidden from screen
-  sharing.
+  takes focus, and clicks go straight through it.
+- **Screen sharing:** VC Alert stays out of screen shares and recordings. To
+  show it, switch on **Settings → Overlay → Show in screen sharing** (it asks
+  once to make sure).
 - **Open at login** with **Start in the background** keeps VC Alert in the
   menu bar when you log in. Opening it yourself always shows the window.
 - Use headphones: speakers can leak the beep into your microphone.

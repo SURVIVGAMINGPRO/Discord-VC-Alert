@@ -47,6 +47,7 @@ pub async fn add_target(app: AppHandle, label: String, ident: String) -> R<Targe
         return Err("Enter a username or user ID.".into());
     }
     let t = s.store.lock().unwrap().add(&label, &ident)?;
+    s.targets_changed();
     s.changed();
     Ok(t)
 }
@@ -67,6 +68,7 @@ pub async fn add_many(app: AppHandle, text: String) -> R<AddMany> {
         .map(str::to_string)
         .collect();
     let (added, skipped) = s.store.lock().unwrap().add_many(&parts)?;
+    s.targets_changed();
     s.changed();
     Ok(AddMany { added, skipped: skipped.into_iter().map(|(value, reason)| transfer::Skip { value, reason }).collect() })
 }
@@ -92,6 +94,7 @@ pub async fn remove_target(app: AppHandle, key: String) -> R<Option<Removed>> {
         }
         Removed { id, label }
     });
+    s.targets_changed();
     s.changed();
     Ok(out)
 }
@@ -106,6 +109,7 @@ pub async fn undo_remove(app: AppHandle, id: u64) -> R<()> {
     };
     if let Some((_, t, i)) = entry {
         s.store.lock().unwrap().insert(t, i)?;
+        s.targets_changed();
         s.changed();
     }
     Ok(())
@@ -127,10 +131,52 @@ pub async fn set_person_sound(app: AppHandle, key: String, spec: Option<SoundSpe
     Ok(())
 }
 
+/// Their leave sound: off, or on with `spec` (null: the soft beep made from
+/// their join sound; else their own beep or a sound file).
 #[tauri::command]
-pub async fn set_leave_sound(app: AppHandle, key: String, on: bool) -> R<()> {
+pub async fn set_leave(app: AppHandle, key: String, on: bool, spec: Option<SoundSpec>) -> R<()> {
     let s = state(&app);
-    s.store.lock().unwrap().set_leave_sound(&key, on)?;
+    s.store.lock().unwrap().set_leave(&key, on, spec)?;
+    s.changed();
+    Ok(())
+}
+
+// ----------------------------------------------------------------- lists --
+// Up to 5 named lists; the active one is watched. Every change tells the
+// watcher, which re-reads who's in your call for the new list.
+
+#[tauri::command]
+pub async fn list_add(app: AppHandle, name: String) -> R<usize> {
+    let s = state(&app);
+    let i = s.store.lock().unwrap().add_list(&name)?;
+    s.targets_changed();
+    s.changed();
+    Ok(i)
+}
+
+#[tauri::command]
+pub async fn list_rename(app: AppHandle, index: usize, name: String) -> R<()> {
+    let s = state(&app);
+    s.store.lock().unwrap().rename_list(index, &name)?;
+    s.changed();
+    Ok(())
+}
+
+/// Returns the deleted list's name.
+#[tauri::command]
+pub async fn list_delete(app: AppHandle, index: usize) -> R<String> {
+    let s = state(&app);
+    let name = s.store.lock().unwrap().delete_list(index)?;
+    s.targets_changed();
+    s.changed();
+    Ok(name)
+}
+
+#[tauri::command]
+pub async fn list_switch(app: AppHandle, index: usize) -> R<()> {
+    let s = state(&app);
+    s.store.lock().unwrap().switch_list(index)?;
+    s.targets_changed();
     s.changed();
     Ok(())
 }
@@ -422,6 +468,7 @@ pub async fn import_apply(app: AppHandle, options: ApplyOptions) -> R<ImportResu
         (Some(dir), true) => s.avatars.import_from(dir),
         _ => 0,
     };
+    s.targets_changed();
     s.changed();
     Ok(ImportResult { added: applied.added, updated: applied.updated, removed: applied.removed, pictures })
 }
@@ -498,6 +545,7 @@ pub async fn restore_backup(app: AppHandle, name: String) -> R<()> {
     let restored = vc_core::store::Store::open(&path).map_err(|_| "That backup can't be read.".to_string())?;
     backup_now(&s)?;
     s.store.lock().unwrap().replace(restored.cfg)?;
+    s.targets_changed();
     s.changed();
     Ok(())
 }

@@ -116,6 +116,21 @@ export function customTag(t: Target, cfg: Config): string | null {
   return named ? `Custom · ${named.name}` : 'Custom';
 }
 
+/** Lists: the same limits as vc-core's config.rs. */
+export const MAX_LISTS = 5;
+export const LIST_NAME_MAX = 12;
+
+/** The soft leave beep made from someone's sound (vc-core `leave_beep`). */
+export function leaveBeep(b: Beep): Beep {
+  return {
+    ...b,
+    frequency_hz: Math.min(2000, Math.max(300, Math.round(b.frequency_hz * 0.7))),
+    duration_ms: Math.min(300, Math.max(80, b.duration_ms)),
+    repeats: 1,
+    volume: Math.min(1, Math.max(0.05, Math.round(b.volume * 50) / 100)),
+  };
+}
+
 /** Saved profiles: the same limits as vc-core's config.rs. */
 export const MAX_PROFILES = 3;
 export const PROFILE_NAME_MAX = 12;

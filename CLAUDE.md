@@ -37,7 +37,8 @@ profile pictures everywhere, 2.0.4 the list as cards, 2.0.5 the scroll progress 
 scrollbar, 2.0.6 no console window on Windows, 2.0.7 centred lamp, even avatar spacing
 and no Space switching on macOS, 2.0.8 snooze, leave sound, Quiet reminder
 options and 30 px pictures, 2.0.9 stacked toasts with a countdown bar, 2.1.0
-the logo, its launch zoom, the card hover shadow and GitHub Releases; fixes
+the logo, its launch zoom, the card hover shadow and GitHub Releases, 2.1.1
+lists, group calls, leave sound choices and "Show in screen sharing"; fixes
 from here are 2.1.x. Change it in
 `Cargo.toml` (`[workspace.package]`), `package.json` and
 `src-tauri/tauri.conf.json` together (plus the version in `src/lib/mock.ts`),
@@ -90,7 +91,7 @@ npm run dev                       # UI only, in a browser, with the mock backend
 npx tauri dev                     # the real app (Rust + UI, hot reload)
 npm run check                     # svelte-check: must be 0 errors, 0 warnings
 npm run build                     # UI bundle
-cargo test -p vc-core             # engine tests (47 at the time of writing)
+cargo test -p vc-core             # engine tests (55 at the time of writing)
 cargo test -p vc-core --test avatars_live -- --ignored   # real CDN download (network)
 CI=true npx tauri build --target universal-apple-darwin   # macOS .app + .dmg
 npm run icons && npx tauri icon src-tauri/icons/app-icon.png -o src-tauri/icons
@@ -120,7 +121,17 @@ Ported from v1 and covered by tests; keep them green.
   presence in join order, alert with per-person cooldown, Quiet suppresses
   sound only. `Host::left(key)` fires when a watched person leaves your channel
   (never for your own channel switches, never in Quiet); the shell plays their
-  leave sound (`sound::leave_beep`: one lower, quieter beep) if `leave_sound`. Reconnect every 5 s. Stop is a cancellation token and takes
+  leave sound if `general.leave_sounds` and their `leave_sound` (on unless set
+  to false): their `leave` spec (beep or file), else `sound::leave_beep`.
+- **Group and DM calls:** if Discord refuses the voice-state subscription or
+  the call has no `guild_id`, the watcher polls `GET_SELECTED_VOICE_CHANNEL`
+  every `POLL_EVERY` (2 s) and turns the difference into joins and leaves
+  (names: "Group call" / "Call"). The reader is cancel-safe (`read_buf` into
+  `Session.buf`, whole frames taken out with `take_frame`), so the poll timer
+  can interrupt a read without losing bytes.
+- `Host::wake()` (a `Notify`): the shell signals it when the watched people
+  change (list switch, add, remove, import, restore); the watcher re-reads the
+  call quietly (no alerts, no leave sounds). Reconnect every 5 s. Stop is a cancellation token and takes
   effect immediately on every platform (v1 couldn't on Windows).
 - **v1 bug fixed:** v1 stayed on "connecting" if you weren't in a voice
   channel when pressing Start; v2 reports `idle_no_channel`.
@@ -136,9 +147,14 @@ Ported from v1 and covered by tests; keep them green.
 - `settings.json` is v1's `config.json` shape **minus secrets**, plus
   `"vc_alert": {"version": 2}`, `overlay.style|display|hide_from_capture`,
   `general.close_to_tray|launch_at_login|hide_dock_icon|setup_complete`,
-  `appearance.theme|density`, `general.quiet_reminder`, per-person
-  `leave_sound` (only written when true) and `beep_profiles`. v1 ignores the
-  extra keys. A broken file is
+  `appearance.theme|density`, `general.quiet_reminder|capture_confirmed|leave_sounds`,
+  per-person `leave_sound` (only written when false) and `leave`,
+  `beep_profiles`, and `lists` + `active_list`. v1 ignores the extra keys.
+- **Lists:** up to 5 (`MAX_LISTS`), names ≤12 (`LIST_NAME_MAX`), unique
+  ignoring case. `targets` is always the active list's people (so everything
+  that reads it is unchanged); `lists[active_list].targets` stays empty and
+  `Config::switch_list` swaps them. A file without `lists` gets one, "Main".
+  Watch-list exports and imports work on the active list; a backup has all. A broken file is
   moved aside (`settings.broken-<time>.json`), never overwritten.
 - Secrets: one keychain item (service "VC Alert", account "discord") holding
   `{client_secret, token}`, so macOS asks at most once. Falls back to
@@ -263,6 +279,12 @@ A quiet night-shift panel built from the icon's blurple. Mode: Operate (tool UI)
   while typing doesn't animate.
 - Overlay: only the join halo, the count roll + bump, and the bubble grow and
   glide. Nothing on the overlay loops.
+- List bar (under the header): the logo, the active list's name as a picker
+  (menu: lists with a check, New list…, Rename…, Delete… with an
+  `AlertDialog`), and "n people". `AlertDialog` is Animate UI's alert dialog:
+  the card tips from the top (`--dialog-tip`, `--dialog-perspective`) on the
+  dialog spring, its fade ahead; the backdrop's `--alert-scrim` tint and
+  `--blur-backdrop` grow from nothing. Cancel has focus first.
 - Launch: the logo (`components/Logo.svelte`, `assets/appicon.svg`) shows for
   `--t-launch-hold`, then Animista's slide-out-fwd-center (translateZ to
   `--launch-depth` under `--launch-perspective`, fading, `--t-launch` on
@@ -292,7 +314,8 @@ takes URL params:
 `style=pictures|count|dots`, `px=8..48`, `n=…`, `join=0`,
 `bg=bright|dark|busy`, `overlay=off`, `pics=1` (stand-in pictures for
 everyone but the last person), `snoozed=1` (Sam for 52 min, pixel_fox for
-this call), `reminder=off` (Quiet reminder switched off). Check 380 × 520 (the minimum window
+this call), `reminder=off` (Quiet reminder switched off), `lists=1` (three
+lists: Main, Gaming, Late night), `leave=off` (leave sounds off for everyone). Check 380 × 520 (the minimum window
 size), both Ink and Paper, Tab order, and mid-animation frames.
 Then run the detector:
 `~/.claude/plugins/cache/impeccable/impeccable/4.7.0/skills/impeccable/scripts/impeccable detect --json src design/preview.html`

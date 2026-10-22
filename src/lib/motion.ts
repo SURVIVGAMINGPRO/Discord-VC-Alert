@@ -263,6 +263,65 @@ export function dialogOut(node: Element): TransitionConfig {
   };
 }
 
+/** Alert dialogs (Animate UI): the card tips forward from the top to upright,
+ *  growing from --dialog-from out of a light blur on the dialog spring, its
+ *  fade running ahead (--t-overlay, soft) so it reads early. It leaves the
+ *  way it came on the dismiss curve. Reduced motion: it only fades. */
+export function alertIn(_node: Element): TransitionConfig {
+  alive(_node);
+  const from = num('--dialog-from');
+  const tip = num('--dialog-tip');
+  const persp = tok('--dialog-perspective');
+  const blur = num('--blur-surface');
+  const spring = ease('--spring-dialog-ease');
+  const soft = ease('--ease-soft');
+  const total = ms('--spring-dialog-dur');
+  const fadeShare = Math.min(1, ms('--t-overlay') / total);
+  if (reduced()) return { duration: ms('--t-fade'), easing: ease('--ease-out'), css: (t) => `opacity:${t}` };
+  return {
+    duration: total,
+    css: (t) => {
+      const s = spring(t);
+      const o = soft(Math.min(1, t / fadeShare));
+      return `opacity:${o};filter:blur(${(1 - s) * blur}px);transform:perspective(${persp}) rotateX(${-tip * (1 - s)}deg) scale(${from + (1 - from) * s})`;
+    },
+  };
+}
+
+export function alertOut(node: Element): TransitionConfig {
+  makeInert(node);
+  const from = num('--dialog-from');
+  const tip = num('--dialog-tip');
+  const persp = tok('--dialog-perspective');
+  const blur = num('--blur-surface');
+  if (reduced()) return { duration: ms('--t-dismiss'), easing: ease('--ease-away'), css: (t) => `opacity:${t}` };
+  return {
+    duration: ms('--t-dismiss'),
+    easing: ease('--ease-away'),
+    css: (t) =>
+      `opacity:${t};filter:blur(${(1 - t) * blur}px);transform:perspective(${persp}) rotateX(${-tip * (1 - t)}deg) scale(${from + (1 - from) * t})`,
+  };
+}
+
+/** The alert dialog's backdrop: its tint and blur grow from nothing (never an
+ *  opacity fade, which would cross-fade a sharp page with a blurred one). */
+export function alertScrimIn(_node: Element): TransitionConfig {
+  alive(_node);
+  const blur = num('--blur-backdrop');
+  return {
+    duration: ms('--t-overlay'),
+    easing: ease('--ease-soft'),
+    css: (t) =>
+      `background-color:color-mix(in srgb, var(--alert-scrim) ${t * 100}%, transparent);backdrop-filter:blur(${t * blur}px);-webkit-backdrop-filter:blur(${t * blur}px)`,
+  };
+}
+
+export function alertScrimOut(node: Element): TransitionConfig {
+  const cfg = alertScrimIn(node); // the same way out, on the same timing
+  makeInert(node);
+  return cfg;
+}
+
 export function backdropIn(_node: Element): TransitionConfig {
   alive(_node);
   return { duration: ms('--t-overlay'), easing: ease('--ease-soft'), css: (t) => `opacity:${t}` };

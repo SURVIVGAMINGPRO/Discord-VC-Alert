@@ -123,9 +123,80 @@ impl Store {
         self.save()
     }
 
-    pub fn set_leave_sound(&mut self, key: &str, on: bool) -> Result<(), String> {
+    /// Their leave sound: off, or on with `spec` (None: the soft beep).
+    pub fn set_leave(&mut self, key: &str, on: bool, spec: Option<SoundSpec>) -> Result<(), String> {
         let Some(i) = self.cfg.position(key) else { return Ok(()) };
+        let spec = spec.and_then(|s| {
+            crate::config::clean_sound(Some(&serde_json::to_value(s).unwrap_or(Value::Null)))
+        });
         self.cfg.targets[i].leave_sound = on;
+        self.cfg.targets[i].leave = spec;
+        self.save()
+    }
+
+    // ----------------------------------------------------------- lists --
+
+    /// A new, empty list, which becomes the watched one. Returns its index.
+    pub fn add_list(&mut self, name: &str) -> Result<usize, String> {
+        use crate::config::{clean_list_name, WatchList, MAX_LISTS};
+        if self.cfg.lists.len() >= MAX_LISTS {
+            return Err(format!("You can have {MAX_LISTS} lists. Delete one first."));
+        }
+        let n = clean_list_name(name);
+        if n.is_empty() {
+            return Err("Give the list a name.".into());
+        }
+        if self.cfg.lists.iter().any(|l| l.name.to_lowercase() == n.to_lowercase()) {
+            return Err(format!("You already have a list called “{n}”."));
+        }
+        self.cfg.lists.push(WatchList { name: n, targets: Vec::new() });
+        let i = self.cfg.lists.len() - 1;
+        self.cfg.switch_list(i);
+        self.save()?;
+        Ok(i)
+    }
+
+    pub fn rename_list(&mut self, i: usize, name: &str) -> Result<(), String> {
+        let n = crate::config::clean_list_name(name);
+        if i >= self.cfg.lists.len() {
+            return Err("That list doesn't exist any more.".into());
+        }
+        if n.is_empty() {
+            return Err("Give the list a name.".into());
+        }
+        if self.cfg.lists.iter().enumerate().any(|(j, l)| j != i && l.name.to_lowercase() == n.to_lowercase()) {
+            return Err(format!("You already have a list called “{n}”."));
+        }
+        self.cfg.lists[i].name = n;
+        self.save()
+    }
+
+    /// Delete a list and its people (never the last list). Deleting the
+    /// watched list switches to its neighbour first. Returns its name.
+    pub fn delete_list(&mut self, i: usize) -> Result<String, String> {
+        let len = self.cfg.lists.len();
+        if i >= len {
+            return Err("That list doesn't exist any more.".into());
+        }
+        if len == 1 {
+            return Err("Keep at least one list.".into());
+        }
+        if i == self.cfg.active_list {
+            self.cfg.switch_list(if i > 0 { i - 1 } else { 1 });
+        }
+        let gone = self.cfg.lists.remove(i);
+        if i < self.cfg.active_list {
+            self.cfg.active_list -= 1;
+        }
+        self.save()?;
+        Ok(gone.name)
+    }
+
+    pub fn switch_list(&mut self, i: usize) -> Result<(), String> {
+        if i >= self.cfg.lists.len() {
+            return Err("That list doesn't exist any more.".into());
+        }
+        self.cfg.switch_list(i);
         self.save()
     }
 
@@ -222,5 +293,36 @@ mod tests {
         let p = dir.path().join("settings.json");
         std::fs::write(&p, "{nope").unwrap();
         assert!(Store::open(&p).is_err());
+    }
+
+    #[test]
+    fn lists_add_rename_switch_and_delete() {
+        let (_d, mut s) = store();
+        s.add("Maria", "maria_k").unwrap();
+        assert_eq!(s.add_list("Gaming").unwrap(), 1);
+        assert_eq!(s.cfg.active_list, 1, "a new list becomes the watched one");
+        assert!(s.cfg.targets.is_empty());
+        assert!(s.add_list(" gaming ").is_err(), "names are unique, ignoring case");
+        assert!(s.add_list("   ").is_err());
+        for n in ["C", "D", "E"] {
+            s.add_list(n).unwrap();
+        }
+        assert!(s.add_list("F").unwrap_err().contains("5 lists"));
+        s.rename_list(1, "Late night gaming").unwrap();
+        assert_eq!(s.cfg.lists[1].name, "Late night g");
+        s.switch_list(0).unwrap();
+        assert_eq!(s.cfg.targets[0].username.as_deref(), Some("maria_k"));
+        // Deleting the watched list switches to its neighbour; its people go with it.
+        assert_eq!(s.delete_list(0).unwrap(), "Main");
+        assert_eq!(s.cfg.lists[s.cfg.active_list].name, "Late night g");
+        assert!(s.cfg.targets.is_empty());
+        let names: Vec<String> = s.cfg.lists.iter().map(|l| l.name.clone()).collect();
+        assert_eq!(names, ["Late night g", "C", "D", "E"]);
+        for _ in 0..3 {
+            s.delete_list(0).unwrap();
+        }
+        assert!(s.delete_list(0).is_err(), "the last list stays");
+        let again = Store::open(s.path()).unwrap();
+        assert_eq!(again.cfg.lists.len(), 1);
     }
 }

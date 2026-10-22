@@ -1,6 +1,7 @@
 <script lang="ts">
   // Shared by Settings → Sound (Generated beep / Sound file) and the
-  // per-person sound sheet (Universal / Custom beep / Sound file).
+  // per-person sound sheet (join: Universal / Own beep / Sound file; leave:
+  // Off / Soft / Own beep / Sound file).
   import Segmented from './Segmented.svelte';
   import Slider from './Slider.svelte';
   import Button from './Button.svelte';
@@ -12,13 +13,14 @@
   import { play, reduced, swapIn } from '../lib/motion';
   import type { Beep } from '../lib/types';
 
-  type Mode = 'universal' | 'beep' | 'file';
+  type Mode = 'off' | 'universal' | 'beep' | 'file';
   let {
     modes,
     mode,
     beep,
     file,
     universalNote = '',
+    offNote = '',
     onchange,
     ontest,
   }: {
@@ -27,6 +29,7 @@
     beep: Beep;
     file: string;
     universalNote?: string;
+    offNote?: string;
     onchange: (mode: Mode, beep: Beep, file: string) => void;
     ontest: () => Promise<number>;
   } = $props();
@@ -83,16 +86,18 @@
 <div class="controls">
   <div class="top">
     <Segmented options={modes} value={mode} label="Sound type" onchange={(m) => onchange(m, beep, file)} />
-    <Button small onclick={test} label="Test sound">
-      <SpeakerIcon size={16} {playing} /> Test
-    </Button>
+    {#if mode !== 'off'}
+      <Button small onclick={test} label="Test sound">
+        <SpeakerIcon size={16} {playing} /> Test
+      </Button>
+    {/if}
   </div>
 
   <div class="page" bind:this={page}>
     {#key mode}
       <div class="inner" in:swapIn>
-        {#if mode === 'universal'}
-          <p class="note">{universalNote}</p>
+        {#if mode === 'universal' || mode === 'off'}
+          <p class="note">{mode === 'off' ? offNote : universalNote}</p>
         {:else if mode === 'beep'}
           <div class="presets" role="group" aria-label="Ready-made beeps">
             {#each BEEP_PRESETS as p}

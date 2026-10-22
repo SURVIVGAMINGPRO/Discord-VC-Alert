@@ -34,8 +34,16 @@ export interface Target {
   id?: string;
   username?: string;
   sound?: SoundSpec;
-  /** v2: a softer sound when they leave your channel. */
+  /** v2: a sound when they leave your channel. Absent means on; only false is stored. */
   leave_sound?: boolean;
+  /** v2: which leave sound (their own beep or a file); absent: the soft beep. */
+  leave?: SoundSpec;
+}
+
+/** One of up to 5 named lists. The active list's people are in `Config.targets`. */
+export interface WatchList {
+  name: string;
+  targets: Target[];
 }
 
 export interface OverlaySettings {
@@ -63,6 +71,10 @@ export interface General {
   hide_dock_icon: boolean;
   setup_complete: boolean;
   quiet_reminder: boolean;
+  /** Confirmed once that VC Alert may show in screen shares: don't ask again. */
+  capture_confirmed: boolean;
+  /** A sound when someone on your list leaves (each person can change theirs). */
+  leave_sounds: boolean;
 }
 
 export interface Appearance {
@@ -74,7 +86,10 @@ export interface Config {
   client_id: string;
   redirect_uri: string;
   scopes: string[];
+  /** The active list's people. */
   targets: Target[];
+  lists: WatchList[];
+  active_list: number;
   alert_if_already_present: boolean;
   cooldown_seconds: number;
   sound_file: string;

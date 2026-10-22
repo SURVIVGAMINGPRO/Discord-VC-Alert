@@ -23,6 +23,16 @@ const config: Config = {
   redirect_uri: 'http://localhost',
   scopes: ['rpc', 'rpc.voice.read'],
   targets: qp.get('empty') === '1' ? [] : people,
+  // ?lists=1: three lists, so the picker has something to switch between.
+  lists:
+    qp.get('lists') === '1'
+      ? [
+          { name: 'Main', targets: [] },
+          { name: 'Gaming', targets: [{ label: 'pixel_fox', username: 'pixel_fox', sound: { beep: { frequency_hz: 2000, duration_ms: 60, repeats: 5, volume: 0.9 } } }, { label: 'zed_42', username: 'zed_42' }] },
+          { name: 'Late night', targets: [] },
+        ]
+      : [{ name: 'Main', targets: [] }],
+  active_list: 0,
   alert_if_already_present: true,
   cooldown_seconds: 5,
   sound_file: '',
@@ -43,6 +53,8 @@ const config: Config = {
     close_to_tray: true, launch_at_login: false, hide_dock_icon: false,
     setup_complete: qp.get('wizard') !== '1',
     quiet_reminder: qp.get('reminder') !== 'off',
+    capture_confirmed: false,
+    leave_sounds: qp.get('leave') !== 'off',
   },
   appearance: { theme: (qp.get('theme') as any) ?? 'onyx', density: (qp.get('density') as any) ?? 'compact' },
 };
@@ -59,7 +71,7 @@ const snap: Snapshot = {
   snoozed: qp.get('snoozed') === '1' ? [{ key: 'samwise', until: Date.now() + 52 * 60000 }, { key: 'pixel_fox', until: null }] : [],
   activity: [],
   platform: navigator.userAgent.includes('Mac') ? 'macos' : 'windows',
-  version: '2.1.0',
+  version: '2.1.1',
   data_dir: '~/Library/Application Support/VC Alert',
   displays: [{ name: 'Built-in Display', label: 'Built-in Display (1512 × 982)', primary: true }],
   notice: null,
@@ -100,6 +112,14 @@ function fakePic(key: string): string | null {
   const fg = `hsl(${h} 30% 86%)`;
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' fill='hsl(${h} 42% 46%)'/><circle cx='32' cy='26' r='12' fill='${fg}'/><ellipse cx='32' cy='60' rx='22' ry='17' fill='${fg}'/></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function switchList(i: number) {
+  if (i === config.active_list || i >= config.lists.length) return;
+  config.lists[config.active_list].targets = config.targets;
+  config.targets = config.lists[i].targets;
+  config.lists[i].targets = [];
+  config.active_list = i;
 }
 
 function member(t: Target): Member {
@@ -191,12 +211,45 @@ export async function mockInvoke(cmd: string, a: any): Promise<unknown> {
       deepMerge(config, a.patch);
       changed();
       return;
-    case 'set_leave_sound': {
+    case 'set_leave': {
       const i = find(a.key);
-      if (i >= 0) config.targets[i].leave_sound = a.on || undefined;
+      if (i >= 0) {
+        config.targets[i].leave_sound = a.on ? undefined : false;
+        if (a.spec) config.targets[i].leave = a.spec;
+        else delete config.targets[i].leave;
+      }
       changed();
       return;
     }
+    case 'list_add': {
+      const n = String(a.name).trim().slice(0, 12);
+      if (config.lists.length >= 5) throw 'You can have 5 lists. Delete one first.';
+      if (config.lists.some((l) => l.name.toLowerCase() === n.toLowerCase())) throw `You already have a list called “${n}”.`;
+      config.lists.push({ name: n, targets: [] });
+      switchList(config.lists.length - 1);
+      changed();
+      return config.lists.length - 1;
+    }
+    case 'list_rename': {
+      const n = String(a.name).trim().slice(0, 12);
+      if (config.lists.some((l, j) => j !== a.index && l.name.toLowerCase() === n.toLowerCase())) throw `You already have a list called “${n}”.`;
+      config.lists[a.index].name = n;
+      changed();
+      return;
+    }
+    case 'list_delete': {
+      if (config.lists.length === 1) throw 'Keep at least one list.';
+      const i = a.index as number;
+      if (i === config.active_list) switchList(i > 0 ? i - 1 : 1);
+      const [gone] = config.lists.splice(i, 1);
+      if (i < config.active_list) config.active_list -= 1;
+      changed();
+      return gone.name;
+    }
+    case 'list_switch':
+      switchList(a.index);
+      changed();
+      return;
     case 'test_leave_sound':
       return 0.09;
     case 'snooze': {
